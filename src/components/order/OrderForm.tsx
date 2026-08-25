@@ -163,16 +163,18 @@ export const OrderForm: React.FC<OrderFormProps> = ({
 
       {/* Header section inside card — simple label style, no colored box, icon and text in brand teal */}
       <div className="mb-3.5 pb-3 sm:mb-4 sm:pb-3.5 border-b border-gray-100 flex flex-col items-center gap-2 min-w-0">
-        <div className="flex items-center justify-center gap-2 max-w-full">
-          <PencilLine className="w-5 h-5 sm:w-5.5 sm:h-5.5 text-[#22A39E] shrink-0" />
-          <h3 className="text-base sm:text-lg font-bold text-[#22A39E] leading-tight break-words">
+        <div className="flex items-center justify-center gap-2.5 max-w-full">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#22A39E]/10 flex items-center justify-center shrink-0">
+            <PencilLine className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-[#22A39E]" />
+          </div>
+          <h3 className="text-lg sm:text-xl font-black text-[#22A39E] leading-tight break-words">
             املأ بياناتك أدناه لتأكيد الطلب
           </h3>
         </div>
 
-        {/* Soft Text Line Without Background */}
-        <div className="flex items-center justify-center gap-1.5 text-xs sm:text-sm text-gray-600 font-bold whitespace-nowrap max-w-full">
-          <span>التوصيل خلال <strong className="text-[#1B8581] font-black">أقل من 48 ساعة</strong>،</span>
+        {/* Soft Text Line Without Background — fully black */}
+        <div className="flex items-center justify-center gap-1.5 text-xs sm:text-sm text-gray-900 font-bold whitespace-nowrap max-w-full">
+          <span>التوصيل خلال <strong className="font-black">أقل من 48 ساعة</strong>،</span>
           <span>فحص قبل الاستلام</span>
         </div>
       </div>
