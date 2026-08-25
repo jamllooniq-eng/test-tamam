@@ -57,7 +57,7 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
 
         {/* 2. WhatsApp Confirmation Alert Banner */}
         <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-3.5 sm:p-4 text-center">
-          <p className="text-xs sm:text-sm font-semibold text-gray-900 leading-relaxed max-w-lg mx-auto">
+          <p className="text-sm sm:text-base font-semibold text-gray-900 leading-relaxed max-w-lg mx-auto">
             سيتم التواصل معك قريباً لتأكيد الطلب، الرجاء الرد على رسالة الواتساب بكلمة{' '}
             <strong className="text-emerald-700 font-black text-sm sm:text-base">
               «تم»
@@ -97,10 +97,10 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
             </div>
 
             <div className="flex-1 min-w-0 space-y-1.5">
-              <h3 className="text-xs sm:text-sm font-bold text-gray-900 line-clamp-2 leading-relaxed">
+              <h3 className="text-sm sm:text-base font-bold text-gray-900 line-clamp-2 leading-relaxed">
                 {product.title}
               </h3>
-              <div className="inline-flex items-center gap-1 bg-white border border-gray-200 px-2.5 py-0.5 rounded-md text-[11px] font-bold text-gray-700 shadow-2xs">
+              <div className="inline-flex items-center gap-1 bg-white border border-gray-200 px-2.5 py-0.5 rounded-md text-xs font-bold text-gray-700 shadow-2xs">
                 <span>العدد:</span>
                 <span className="text-gray-900">{quantity}</span>
               </div>
@@ -108,7 +108,7 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
           </div>
 
           {/* Customer & Delivery Details Rows */}
-          <div className="pt-3 border-t border-gray-200/70 space-y-2.5 text-xs sm:text-sm text-gray-700">
+          <div className="pt-3 border-t border-gray-200/70 space-y-2.5 text-sm text-gray-700">
             <div className="flex justify-between items-start gap-3 min-w-0">
               <span className="text-gray-500 font-medium shrink-0">المستلم:</span>
               <span className="font-bold text-gray-900 break-words text-left min-w-0">{name}</span>
