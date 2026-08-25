@@ -161,12 +161,16 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       {/* Accent Top Gradient Header Bar */}
       <div className="absolute top-0 right-0 left-0 h-2 bg-gradient-to-r from-[#22A39E] via-[#2ec4be] to-[#22A39E]"></div>
 
-      {/* Header section inside card — plain text only, no icon, darkest brand teal for contrast */}
-      <div className="mb-4 pb-3.5 border-b border-gray-100 text-center min-w-0">
-  <h3 className="text-lg sm:text-xl font-black leading-tight text-gray-900">
-    يرجى إدخال <span className="text-[#22A39E]">معلوماتك</span> لإكمال الطلب
-  </h3>
-</div>
+      {/* Header section inside card — side accent bar + two-tone heading, size consistent with rest of form (text-base/lg, matching submit button) */}
+      <div className="mb-4 sm:mb-5 text-right min-w-0">
+        <div className="flex items-center justify-start gap-3">
+          <span className="h-7 w-1 shrink-0 rounded-full bg-[#22A39E]" />
+          <h3 className="text-base sm:text-lg font-extrabold leading-tight tracking-tight text-[#172033]">
+            يرجى إدخال <span className="text-[#22A39E]">معلوماتك</span> لإكمال الطلب
+          </h3>
+        </div>
+        <div className="mt-3 h-px w-full bg-gradient-to-l from-gray-100 via-gray-100 to-transparent" />
+      </div>
 
       {/* Quantity Selector & Order Total Price Rows (Quantity first, Total underneath) */}
       <div className="space-y-2.5 mb-4 sm:mb-5 min-w-0">
