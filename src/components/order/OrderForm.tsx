@@ -162,11 +162,14 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       <div className="absolute top-0 right-0 left-0 h-2 bg-gradient-to-r from-[#22A39E] via-[#2ec4be] to-[#22A39E]"></div>
 
       {/* Header section inside card — plain text only, no icon, darkest brand teal for contrast */}
-      <div className="mb-3.5 pb-3 sm:mb-4 sm:pb-3.5 border-b border-gray-100 text-center min-w-0">
-        <h3 className="text-lg sm:text-xl font-black text-[#22A39E] leading-tight break-words">
-          يرجى إدخال معلوماتك لإكمال الطلب
-        </h3>
-      </div>
+      <div className="mb-3.5 pb-3 sm:mb-4 sm:pb-3.5 border-b border-gray-100 text-right min-w-0">
+  <div className="flex items-center justify-start gap-2">
+    <span className="w-2 h-2 rounded-full bg-[#22A39E] shrink-0 animate-pulse"></span>
+    <h3 className="text-lg sm:text-xl font-black text-[#22A39E] leading-tight break-words">
+      يرجى إدخال معلوماتك لإكمال الطلب
+    </h3>
+  </div>
+</div>
 
       {/* Quantity Selector & Order Total Price Rows (Quantity first, Total underneath) */}
       <div className="space-y-2.5 mb-4 sm:mb-5 min-w-0">
