@@ -4,7 +4,7 @@ import { IRAQ_GOVERNORATES } from '../../lib/governorates';
 import { normalizeDigits, normalizeIraqiPhone } from '../../lib/phone';
 import { QuantitySelector } from './QuantitySelector';
 import { trackInitiateCheckout, trackPurchase, getMetaCookies } from '../../lib/meta-pixel.client';
-import { User, Phone, MapPin, AlertCircle, Loader2, Send, Truck, ChevronDown, ShieldCheck, PencilLine } from 'lucide-react';
+import { User, Phone, MapPin, AlertCircle, Loader2, Send, Truck, ChevronDown, ShieldCheck } from 'lucide-react';
 
 interface OrderFormProps {
   product: RolemallProduct;
@@ -161,22 +161,11 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       {/* Accent Top Gradient Header Bar */}
       <div className="absolute top-0 right-0 left-0 h-2 bg-gradient-to-r from-[#22A39E] via-[#2ec4be] to-[#22A39E]"></div>
 
-      {/* Header section inside card — simple label style, no colored box, icon and text in brand teal */}
-      <div className="mb-3.5 pb-3 sm:mb-4 sm:pb-3.5 border-b border-gray-100 flex flex-col items-center gap-2 min-w-0">
-        <div className="flex items-center justify-center gap-2.5 max-w-full">
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#22A39E]/10 flex items-center justify-center shrink-0">
-            <PencilLine className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-[#22A39E]" />
-          </div>
-          <h3 className="text-lg sm:text-xl font-black text-[#22A39E] leading-tight break-words">
-            املأ بياناتك أدناه لتأكيد الطلب
-          </h3>
-        </div>
-
-        {/* Soft Text Line Without Background — fully black */}
-        <div className="flex items-center justify-center gap-1.5 text-xs sm:text-sm text-gray-900 font-bold whitespace-nowrap max-w-full">
-          <span>التوصيل خلال <strong className="font-black">أقل من 48 ساعة</strong>،</span>
-          <span>فحص قبل الاستلام</span>
-        </div>
+      {/* Header section inside card — plain text only, no icon, darkest brand teal for contrast */}
+      <div className="mb-3.5 pb-3 sm:mb-4 sm:pb-3.5 border-b border-gray-100 text-center min-w-0">
+        <h3 className="text-lg sm:text-xl font-black text-[#22A39E] leading-tight break-words">
+          يرجى إدخال معلوماتك لإكمال الطلب
+        </h3>
       </div>
 
       {/* Quantity Selector & Order Total Price Rows (Quantity first, Total underneath) */}
