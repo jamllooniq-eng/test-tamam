@@ -25,9 +25,8 @@ interface SuccessViewProps {
 
 export const SuccessView: React.FC<SuccessViewProps> = ({
   orderDetails,
-  onContinueShopping,
 }) => {
-  const { product, quantity, totalPrice } = orderDetails;
+  const { product, quantity, totalPrice, name, phone, governorate, address } = orderDetails;
 
   const imageUrl = product.image
     ? getOptimizedImageUrl(product.image, { width: 300, quality: 85, fit: 'contain' })
@@ -37,7 +36,7 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
     <div id="order-success-container" className="py-8 sm:py-12 px-4 sm:px-6 max-w-2xl mx-auto">
       {/* Main Success Container */}
       <div className="bg-white border border-gray-200/90 rounded-3xl p-5 sm:p-8 shadow-xl shadow-gray-200/40 space-y-6">
-        
+
         {/* 1. Success Hero Header */}
         <div className="text-center space-y-3">
           <div className="relative inline-flex items-center justify-center">
@@ -59,14 +58,14 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
         {/* 2. WhatsApp Confirmation Alert Banner */}
         <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-3.5 sm:p-4 text-center">
           <p className="text-xs sm:text-sm font-semibold text-gray-900 leading-relaxed max-w-lg mx-auto">
-           سيتم التواصل معك قريباً لتأكيد الطلب، الرجاء الرد على رسالة الواتساب بكلمة{' '}
+            سيتم التواصل معك قريباً لتأكيد الطلب، الرجاء الرد على رسالة الواتساب بكلمة{' '}
             <strong className="text-emerald-700 font-black text-sm sm:text-base">
               «تم»
             </strong>
           </p>
         </div>
 
-        {/* 3. Product Card with High-Res Image & Polished Price Row */}
+        {/* 3. Product Card with High-Res Image & Full Order Details */}
         <div className="bg-gray-50/70 border border-gray-200/80 rounded-2xl p-4 sm:p-4.5 space-y-3.5 shadow-2xs">
           {/* Card Header: Details Title */}
           <div className="flex items-center gap-1.5 text-xs font-bold text-gray-500 pb-2 border-b border-gray-200/60">
@@ -108,6 +107,22 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
             </div>
           </div>
 
+          {/* Customer & Delivery Details Rows */}
+          <div className="pt-3 border-t border-gray-200/70 space-y-2.5 text-xs sm:text-sm text-gray-700">
+            <div className="flex justify-between items-start gap-3 min-w-0">
+              <span className="text-gray-500 font-medium shrink-0">المستلم:</span>
+              <span className="font-bold text-gray-900 break-words text-left min-w-0">{name}</span>
+            </div>
+            <div className="flex justify-between items-center gap-3 min-w-0">
+              <span className="text-gray-500 font-medium shrink-0">رقم الهاتف:</span>
+              <span className="font-mono font-bold text-gray-900 shrink-0" dir="ltr">{phone}</span>
+            </div>
+            <div className="flex justify-between items-start gap-3 min-w-0">
+              <span className="text-gray-500 font-medium shrink-0">عنوان التوصيل:</span>
+              <span className="font-bold text-gray-900 break-words text-left min-w-0">{governorate} - {address}</span>
+            </div>
+          </div>
+
           {/* Pricing & Free Delivery Footer Row: Price on Right (RTL), Free Delivery on Left */}
           <div className="pt-3 border-t border-gray-200/80 flex items-center justify-between gap-3">
             {/* Right side (RTL first child): Total Price (Number + Currency) */}
@@ -118,7 +133,7 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
               <span className="text-xs font-bold text-gray-700">د.ع</span>
             </div>
 
-            {/* Left side (RTL second child): Free Delivery Badge (Clean, without green background) */}
+            {/* Left side (RTL second child): Free Delivery Badge */}
             <div className="inline-flex items-center gap-1.5 text-[#22A39E] text-xs sm:text-sm font-bold">
               <Truck className="w-4 h-4 text-[#22A39E] shrink-0" />
               <span>توصيل مجاني</span>
@@ -136,5 +151,3 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
     </div>
   );
 };
-
-
