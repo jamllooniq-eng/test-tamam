@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { ShoppingBag } from 'lucide-react';
 import { getOptimizedImageUrl } from '../../lib/image';
 
@@ -14,223 +14,327 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
   title,
 }) => {
   // Deduplicate and filter non-empty images
-  const allImages = Array.from(new Set([mainImage, ...images].filter(Boolean)));
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [imageLoading, setImageLoading] = useState(true);
-
-  // Swipe tracking for mobile touch & desktop drag
-  const startX = useRef<number>(0);
-  const startY = useRef<number>(0);
-  const currentX = useRef<number>(0);
-  const currentY = useRef<number>(0);
-  const isDragging = useRef<boolean>(false);
+  const allImages = useMemo(
+    () => Array.from(new Set([mainImage, ...images].filter(Boolean))),
+    [mainImage, images]
+  );
 
   const total = allImages.length;
-  const activeImage = allImages[selectedIndex] || mainImage || '';
-  const proxiedActiveImage = activeImage
-    ? getOptimizedImageUrl(activeImage, { width: 800, quality: 80, fit: 'contain' })
-    : '';
 
-  // Silent background preload of adjacent images (next and previous) to eliminate flash of loading
-  useEffect(() => {
-    if (typeof window === 'undefined' || total <= 1) return;
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
 
-    const nextIndex = selectedIndex < total - 1 ? selectedIndex + 1 : -1;
-    const prevIndex = selectedIndex > 0 ? selectedIndex - 1 : -1;
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const currentX = useRef(0);
+  const currentY = useRef(0);
+  const hasMoved = useRef(false);
 
-    const indicesToPreload = [nextIndex, prevIndex].filter((i) => i >= 0);
-    indicesToPreload.forEach((idx) => {
-      if (idx !== selectedIndex && allImages[idx]) {
-        const preloadImg = new Image();
-        preloadImg.src = getOptimizedImageUrl(allImages[idx], {
+  // Optimized image URLs are calculated once per image list
+  const optimizedImages = useMemo(
+    () =>
+      allImages.map((image) =>
+        getOptimizedImageUrl(image, {
           width: 800,
           quality: 80,
           fit: 'contain',
-        });
-      }
-    });
-  }, [selectedIndex, total, allImages]);
+        })
+      ),
+    [allImages]
+  );
 
-  // Navigate functions - Strictly sequential from first (0) to last (total - 1)
-  const handlePrev = useCallback(() => {
-    setSelectedIndex((prev) => {
-      if (prev > 0) {
-        setImageLoading(true);
-        return prev - 1;
-      }
-      return prev;
+  // Keep selected index valid if the product images change
+  useEffect(() => {
+    setSelectedIndex((prev) => Math.min(prev, Math.max(total - 1, 0)));
+    setDragOffset(0);
+  }, [total]);
+
+  // Preload adjacent images
+  useEffect(() => {
+    if (typeof window === 'undefined' || total <= 1) return;
+
+    const indexes = [
+      selectedIndex - 1,
+      selectedIndex + 1,
+    ].filter((index) => index >= 0 && index < total);
+
+    indexes.forEach((index) => {
+      const src = optimizedImages[index];
+      if (!src) return;
+
+      const img = new Image();
+      img.decoding = 'async';
+      img.src = src;
     });
+  }, [selectedIndex, total, optimizedImages]);
+
+  const goToIndex = useCallback(
+    (index: number) => {
+      if (total <= 0) return;
+
+      const nextIndex = Math.max(0, Math.min(index, total - 1));
+
+      setSelectedIndex(nextIndex);
+      setDragOffset(0);
+    },
+    [total]
+  );
+
+  const handlePrev = useCallback(() => {
+    setSelectedIndex((prev) => Math.max(0, prev - 1));
+    setDragOffset(0);
   }, []);
 
   const handleNext = useCallback(() => {
-    setSelectedIndex((prev) => {
-      if (prev < total - 1) {
-        setImageLoading(true);
-        return prev + 1;
-      }
-      return prev;
-    });
+    setSelectedIndex((prev) => Math.min(total - 1, prev + 1));
+    setDragOffset(0);
   }, [total]);
 
-  // Process horizontal swipe gesture
-  const processSwipe = (deltaX: number, deltaY: number) => {
-    if (total <= 1) return;
-    // Check if horizontal swipe exceeds 30px and is predominantly horizontal
-    if (Math.abs(deltaX) > 30 && Math.abs(deltaX) > Math.abs(deltaY) * 1.1) {
-      if (deltaX > 0) {
-        // Swiped from Left to Right -> Advance to next image
-        handleNext();
-      } else {
-        // Swiped from Right to Left -> Go back to previous image
-        handlePrev();
-      }
-    }
-  };
+  const finishDrag = useCallback(() => {
+    if (!isDragging) return;
 
-  // Touch Handlers
+    const deltaX = currentX.current - startX.current;
+    const deltaY = currentY.current - startY.current;
+
+    setIsDragging(false);
+
+    const horizontalSwipe =
+      Math.abs(deltaX) > 30 &&
+      Math.abs(deltaX) > Math.abs(deltaY) * 1.1;
+
+    if (!horizontalSwipe) {
+      setDragOffset(0);
+      return;
+    }
+
+    /*
+     * Keep the same direction as the previous implementation:
+     * Left -> Right = next image
+     * Right -> Left = previous image
+     */
+    if (deltaX > 0) {
+      handleNext();
+    } else {
+      handlePrev();
+    }
+  }, [handleNext, handlePrev, isDragging]);
+
+  // Touch
   const handleTouchStart = (e: React.TouchEvent) => {
-    startX.current = e.touches[0].clientX;
-    startY.current = e.touches[0].clientY;
-    currentX.current = e.touches[0].clientX;
-    currentY.current = e.touches[0].clientY;
+    if (total <= 1) return;
+
+    const touch = e.touches[0];
+
+    startX.current = touch.clientX;
+    startY.current = touch.clientY;
+    currentX.current = touch.clientX;
+    currentY.current = touch.clientY;
+
+    hasMoved.current = false;
+    setIsDragging(true);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    currentX.current = e.touches[0].clientX;
-    currentY.current = e.touches[0].clientY;
+    if (!isDragging || total <= 1) return;
 
-    const diffX = Math.abs(currentX.current - startX.current);
-    const diffY = Math.abs(currentY.current - startY.current);
+    const touch = e.touches[0];
 
-    // If movement is clearly horizontal, prevent browser default back/forward gesture
-    if (diffX > 10 && diffX > diffY * 1.2) {
+    currentX.current = touch.clientX;
+    currentY.current = touch.clientY;
+
+    const deltaX = currentX.current - startX.current;
+    const deltaY = currentY.current - startY.current;
+
+    if (
+      Math.abs(deltaX) > 8 &&
+      Math.abs(deltaX) > Math.abs(deltaY) * 1.1
+    ) {
+      hasMoved.current = true;
+
       if (e.cancelable) {
         e.preventDefault();
       }
+
+      // Slight resistance at the edges
+      let offset = deltaX;
+
+      if (
+        (selectedIndex === 0 && deltaX < 0) ||
+        (selectedIndex === total - 1 && deltaX > 0)
+      ) {
+        offset = deltaX * 0.25;
+      }
+
+      setDragOffset(offset);
     }
   };
 
   const handleTouchEnd = () => {
-    const deltaX = currentX.current - startX.current;
-    const deltaY = currentY.current - startY.current;
-    processSwipe(deltaX, deltaY);
+    finishDrag();
   };
 
-  // Mouse Drag Handlers for Desktop swipe
+  const handleTouchCancel = () => {
+    setIsDragging(false);
+    setDragOffset(0);
+  };
+
+  // Mouse / desktop drag
   const handleMouseDown = (e: React.MouseEvent) => {
-    isDragging.current = true;
+    if (total <= 1) return;
+
+    e.preventDefault();
+
     startX.current = e.clientX;
     startY.current = e.clientY;
     currentX.current = e.clientX;
     currentY.current = e.clientY;
+
+    hasMoved.current = false;
+    setIsDragging(true);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging.current) return;
+    if (!isDragging || total <= 1) return;
+
     currentX.current = e.clientX;
     currentY.current = e.clientY;
-  };
 
-  const handleMouseUp = () => {
-    if (!isDragging.current) return;
-    isDragging.current = false;
     const deltaX = currentX.current - startX.current;
     const deltaY = currentY.current - startY.current;
-    processSwipe(deltaX, deltaY);
-  };
 
-  const handleMouseLeave = () => {
-    if (isDragging.current) {
-      isDragging.current = false;
-      const deltaX = currentX.current - startX.current;
-      const deltaY = currentY.current - startY.current;
-      processSwipe(deltaX, deltaY);
+    if (
+      Math.abs(deltaX) > 5 &&
+      Math.abs(deltaX) > Math.abs(deltaY) * 1.1
+    ) {
+      hasMoved.current = true;
+
+      let offset = deltaX;
+
+      if (
+        (selectedIndex === 0 && deltaX < 0) ||
+        (selectedIndex === total - 1 && deltaX > 0)
+      ) {
+        offset = deltaX * 0.25;
+      }
+
+      setDragOffset(offset);
     }
   };
 
-  return (
-    <div id="product-gallery" className="w-full max-w-[480px] mx-auto select-none">
-      {/* 1. Square 1:1 Image Box */}
+  const handleMouseUp = () => {
+    finishDrag();
+  };
+
+  const handleMouseLeave = () => {
+    if (isDragging) {
+      finishDrag();
+    }
+  };
+
+  const handleImageError = (
+    e: React.SyntheticEvent<HTMLImageElement>,
+    originalImage: string
+  ) => {
+    const target = e.currentTarget;
+
+    if (target.src !== originalImage) {
+      target.src = originalImage;
+    }
+  };
+
+  if (!total) {
+    return (
       <div
-        className="relative w-full aspect-square bg-gray-100 rounded-[18px] border border-[#E5E5E5] shadow-xs overflow-hidden cursor-grab active:cursor-grabbing touch-pan-y"
+        id="product-gallery"
+        className="w-full max-w-[480px] mx-auto select-none"
+      >
+        <div className="relative w-full aspect-square bg-gray-50 rounded-[18px] border border-[#E5E5E5] overflow-hidden flex flex-col items-center justify-center text-gray-400">
+          <ShoppingBag className="w-16 h-16 mb-2 opacity-30" />
+          <span className="text-xs font-semibold">
+            صورة المنتج غير متوفرة
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      id="product-gallery"
+      className="w-full max-w-[480px] mx-auto select-none"
+    >
+      {/* Main Gallery */}
+      <div
+        className="relative w-full aspect-square bg-gray-100 rounded-[18px] border border-[#E5E5E5] shadow-xs overflow-hidden cursor-grab active:cursor-grabbing"
         style={{ touchAction: 'pan-y' }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchCancel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
       >
-        {/* Skeleton loading indicator behind the image */}
-        {imageLoading && proxiedActiveImage && (
-          <div className="absolute inset-0 bg-gray-100 flex items-center justify-center z-0 pointer-events-none">
-            <ShoppingBag className="w-10 h-10 text-gray-300 animate-pulse" />
-          </div>
-        )}
+        {/* Sliding Track */}
+        <div
+          className="absolute inset-0 flex h-full will-change-transform"
+          style={{
+            transform: `translate3d(calc(-${selectedIndex * 100}% + ${dragOffset}px), 0, 0)`,
+            transition: isDragging
+              ? 'none'
+              : 'transform 380ms cubic-bezier(0.22, 1, 0.36, 1)',
+          }}
+        >
+          {optimizedImages.map((src, index) => (
+            <div
+              key={`${src}-${index}`}
+              className="relative h-full w-full shrink-0"
+            >
+              <img
+                src={src}
+                alt={`${title} - صورة ${index + 1}`}
+                loading={index === 0 ? 'eager' : 'lazy'}
+                fetchPriority={index === selectedIndex ? 'high' : 'auto'}
+                referrerPolicy="no-referrer"
+                decoding="async"
+                draggable={false}
+                className="block w-full h-full object-cover object-center pointer-events-none"
+                onError={(e) => handleImageError(e, allImages[index])}
+              />
+            </div>
+          ))}
+        </div>
 
-        {/* Product Image Stage - Edge to Edge cover with center focus and smooth fade-in */}
-        {proxiedActiveImage ? (
-          <img
-            key={proxiedActiveImage}
-            ref={(node) => {
-              if (node && node.complete && node.naturalWidth > 0) {
-                setImageLoading(false);
-              }
-            }}
-            src={proxiedActiveImage}
-            alt={`${title} - صورة ${selectedIndex + 1}`}
-            fetchPriority="high"
-            loading="eager"
-            referrerPolicy="no-referrer"
-            decoding="async"
-            draggable={false}
-            className={`relative z-1 w-full h-full object-cover object-center transition-opacity duration-300 ${
-              imageLoading ? 'opacity-0' : 'opacity-100'
-            }`}
-            onLoad={() => setImageLoading(false)}
-            onError={(e) => {
-              setImageLoading(false);
-              const target = e.currentTarget;
-              if (activeImage && target.src !== activeImage) {
-                target.src = activeImage;
-              }
-            }}
-          />
-        ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 bg-gray-50">
-            <ShoppingBag className="w-16 h-16 mb-2 opacity-30" />
-            <span className="text-xs font-semibold">صورة المنتج غير متوفرة</span>
-          </div>
-        )}
-
-        {/* Clear & Prominent White Dots Indicator */}
+        {/* Image Dots */}
         {total > 1 && (
           <div
-            className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center justify-center gap-1.5 z-10 pointer-events-auto"
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center justify-center gap-1.5 z-10"
             role="tablist"
             aria-label="صور المنتج"
           >
-            {allImages.map((_, idx) => {
-              const isActive = selectedIndex === idx;
+            {allImages.map((_, index) => {
+              const isActive = selectedIndex === index;
+
               return (
                 <button
-                  key={idx}
+                  key={index}
                   type="button"
                   role="tab"
                   aria-selected={isActive}
-                  aria-label={`عرض الصورة ${idx + 1} من ${total}`}
+                  aria-label={`عرض الصورة ${index + 1} من ${total}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (idx !== selectedIndex) {
-                      setSelectedIndex(idx);
-                      setImageLoading(true);
+
+                    if (index !== selectedIndex) {
+                      goToIndex(index);
                     }
                   }}
-                  className={`transition-all duration-300 cursor-pointer rounded-full p-0 border-none outline-none shadow-sm ${
+                  className={`transition-all duration-200 cursor-pointer rounded-full p-0 border-none outline-none ${
                     isActive
                       ? 'w-6 h-2 bg-white ring-1 ring-black/20 shadow-md'
-                      : 'w-2 h-2 bg-white/70 hover:bg-white ring-1 ring-black/10'
+                      : 'w-2 h-2 bg-white/70 hover:bg-white ring-1 ring-black/10 shadow-sm'
                   }`}
                 />
               );
@@ -241,4 +345,3 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     </div>
   );
 };
-
