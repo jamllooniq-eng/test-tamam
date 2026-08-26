@@ -161,7 +161,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       {/* Accent Top Gradient Header Bar */}
       <div className="absolute top-0 right-0 left-0 h-2 bg-gradient-to-r from-[#22A39E] via-[#2ec4be] to-[#22A39E]"></div>
 
-      {/* Header section inside card — side accent bar + two-tone heading, size consistent with rest of form (text-base/lg, matching submit button) */}
+      {/* Header section inside card — side accent bar + two-tone heading (agreed final design) */}
       <div className="mb-4 sm:mb-5 text-right min-w-0">
         <div className="flex items-center justify-start gap-3">
           <span className="h-7 w-1 shrink-0 rounded-full bg-[#22A39E]" />
