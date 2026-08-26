@@ -29,7 +29,6 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
   const startY = useRef(0);
   const currentX = useRef(0);
   const currentY = useRef(0);
-  const hasMoved = useRef(false);
 
   // Optimized image URLs are calculated once per image list
   const optimizedImages = useMemo(
@@ -131,7 +130,6 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     currentX.current = touch.clientX;
     currentY.current = touch.clientY;
 
-    hasMoved.current = false;
     setIsDragging(true);
   };
 
@@ -150,7 +148,6 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
       Math.abs(deltaX) > 8 &&
       Math.abs(deltaX) > Math.abs(deltaY) * 1.1
     ) {
-      hasMoved.current = true;
 
       if (e.cancelable) {
         e.preventDefault();
@@ -190,7 +187,6 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     currentX.current = e.clientX;
     currentY.current = e.clientY;
 
-    hasMoved.current = false;
     setIsDragging(true);
   };
 
@@ -207,7 +203,6 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
       Math.abs(deltaX) > 5 &&
       Math.abs(deltaX) > Math.abs(deltaY) * 1.1
     ) {
-      hasMoved.current = true;
 
       let offset = deltaX;
 
@@ -279,33 +274,41 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
       >
         {/* Sliding Track */}
         <div
-          className="absolute inset-0 flex h-full will-change-transform"
-          style={{
-            transform: `translate3d(calc(-${selectedIndex * 100}% + ${dragOffset}px), 0, 0)`,
-            transition: isDragging
-              ? 'none'
-              : 'transform 380ms cubic-bezier(0.22, 1, 0.36, 1)',
-          }}
-        >
-          {optimizedImages.map((src, index) => (
-            <div
-              key={`${src}-${index}`}
-              className="relative h-full w-full shrink-0"
-            >
-              <img
-                src={src}
-                alt={`${title} - صورة ${index + 1}`}
-                loading={index === 0 ? 'eager' : 'lazy'}
-                fetchPriority={index === selectedIndex ? 'high' : 'auto'}
-                referrerPolicy="no-referrer"
-                decoding="async"
-                draggable={false}
-                className="block w-full h-full object-cover object-center pointer-events-none"
-                onError={(e) => handleImageError(e, allImages[index])}
-              />
-            </div>
-          ))}
-        </div>
+  className="absolute inset-0 flex h-full will-change-transform"
+  style={{
+    width: `${total * 100}%`,
+    transform: `translate3d(calc(-${selectedIndex * (100 / total)}% + ${dragOffset}px), 0, 0)`,
+    transition: isDragging
+      ? 'none'
+      : 'transform 380ms cubic-bezier(0.22, 1, 0.36, 1)',
+  }}
+>
+  {optimizedImages.map((src, index) => (
+    <div
+      key={`${src}-${index}`}
+      className="relative h-full shrink-0"
+      style={{ width: `${100 / total}%` }}
+    >
+      <img
+        src={src}
+        alt={`${title} - صورة ${index + 1}`}
+loading={
+  index === selectedIndex ||
+  index === selectedIndex - 1 ||
+  index === selectedIndex + 1
+    ? 'eager'
+    : 'lazy'
+}
+fetchPriority={index === selectedIndex ? 'high' : 'auto'}
+        referrerPolicy="no-referrer"
+        decoding="async"
+        draggable={false}
+        className="block w-full h-full object-cover object-center pointer-events-none"
+        onError={(e) => handleImageError(e, allImages[index])}
+      />
+    </div>
+  ))}
+</div>
 
         {/* Image Dots */}
         {total > 1 && (
