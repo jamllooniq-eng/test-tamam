@@ -25,6 +25,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
   const allImages = Array.from(new Set([mainImage, ...images].filter(Boolean)));
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [imageLoading, setImageLoading] = useState(true);
+  const imgElRef = useRef<HTMLImageElement | null>(null);
 
   // Swipe tracking for mobile touch & desktop drag
   const startX = useRef<number>(0);
@@ -38,6 +39,17 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
   const proxiedActiveImage = activeImage
     ? getOptimizedImageUrl(activeImage, { width: 800, quality: 80, fit: 'contain' })
     : '';
+
+  // Catch-up check: whenever the active image src changes (including the very first
+  // render, which may be SSR-hydrated and could have already finished loading before
+  // React attached its onLoad listener), verify if the browser already has it fully
+  // loaded and clear the loading state immediately instead of waiting for an onLoad
+  // event that may never fire in that race condition.
+  useEffect(() => {
+    if (imgElRef.current && imgElRef.current.complete && imgElRef.current.naturalWidth > 0) {
+      setImageLoading(false);
+    }
+  }, [proxiedActiveImage]);
 
   // Silent background preload of adjacent images (next and previous) to eliminate flash of loading
   useEffect(() => {
@@ -186,6 +198,15 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
         {/* Product Image Stage - single stable element, src swaps in place instead of remounting */}
         {proxiedActiveImage ? (
           <img
+            ref={(node) => {
+              imgElRef.current = node;
+              // Catch-up check on the very first mount too (handles SSR-hydrated
+              // first image that may have already finished loading before this
+              // ref/listener attached).
+              if (node && node.complete && node.naturalWidth > 0) {
+                setImageLoading(false);
+              }
+            }}
             src={proxiedActiveImage}
             alt={`${title} - صورة ${selectedIndex + 1}`}
             fetchPriority="high"
