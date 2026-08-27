@@ -8,6 +8,14 @@ interface ProductGalleryProps {
   title: string;
 }
 
+// Check synchronously whether a given image URL is already fully cached by the browser
+function isImageCached(src: string): boolean {
+  if (typeof window === 'undefined' || !src) return false;
+  const img = new window.Image();
+  img.src = src;
+  return img.complete && img.naturalWidth > 0;
+}
+
 export const ProductGallery: React.FC<ProductGalleryProps> = ({
   images = [],
   mainImage,
@@ -51,26 +59,32 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     });
   }, [selectedIndex, total, allImages]);
 
+  // Navigate to a target index, skipping the loading flash entirely if the image
+  // is already cached (as adjacent images normally are, thanks to preloading above).
+  const goToIndex = useCallback(
+    (targetIndex: number) => {
+      if (targetIndex < 0 || targetIndex >= total || targetIndex === selectedIndex) return;
+      const targetSrc = getOptimizedImageUrl(allImages[targetIndex], {
+        width: 800,
+        quality: 80,
+        fit: 'contain',
+      });
+      if (!isImageCached(targetSrc)) {
+        setImageLoading(true);
+      }
+      setSelectedIndex(targetIndex);
+    },
+    [allImages, selectedIndex, total]
+  );
+
   // Navigate functions - Strictly sequential from first (0) to last (total - 1)
   const handlePrev = useCallback(() => {
-    setSelectedIndex((prev) => {
-      if (prev > 0) {
-        setImageLoading(true);
-        return prev - 1;
-      }
-      return prev;
-    });
-  }, []);
+    goToIndex(selectedIndex - 1);
+  }, [goToIndex, selectedIndex]);
 
   const handleNext = useCallback(() => {
-    setSelectedIndex((prev) => {
-      if (prev < total - 1) {
-        setImageLoading(true);
-        return prev + 1;
-      }
-      return prev;
-    });
-  }, [total]);
+    goToIndex(selectedIndex + 1);
+  }, [goToIndex, selectedIndex]);
 
   // Process horizontal swipe gesture
   const processSwipe = (deltaX: number, deltaY: number) => {
@@ -169,15 +183,9 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
           </div>
         )}
 
-        {/* Product Image Stage - Edge to Edge cover with center focus and smooth fade-in */}
+        {/* Product Image Stage - single stable element, src swaps in place instead of remounting */}
         {proxiedActiveImage ? (
           <img
-            key={proxiedActiveImage}
-            ref={(node) => {
-              if (node && node.complete && node.naturalWidth > 0) {
-                setImageLoading(false);
-              }
-            }}
             src={proxiedActiveImage}
             alt={`${title} - صورة ${selectedIndex + 1}`}
             fetchPriority="high"
@@ -185,7 +193,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
             referrerPolicy="no-referrer"
             decoding="async"
             draggable={false}
-            className={`relative z-1 w-full h-full object-cover object-center transition-opacity duration-300 ${
+            className={`relative z-1 w-full h-full object-cover object-center transition-opacity duration-200 ${
               imageLoading ? 'opacity-0' : 'opacity-100'
             }`}
             onLoad={() => setImageLoading(false)}
@@ -222,10 +230,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
                   aria-label={`عرض الصورة ${idx + 1} من ${total}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (idx !== selectedIndex) {
-                      setSelectedIndex(idx);
-                      setImageLoading(true);
-                    }
+                    goToIndex(idx);
                   }}
                   className={`transition-all duration-300 cursor-pointer rounded-full p-0 border-none outline-none shadow-sm ${
                     isActive
@@ -241,4 +246,3 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     </div>
   );
 };
-
