@@ -25,9 +25,9 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const startX = useRef<number>(0);
+  const startY = useRef<number>(0);
   const isDragging = useRef<boolean>(false);
   const lockedAxis = useRef<'horizontal' | 'vertical' | null>(null);
-  const startYRef = useRef<number>(0);
 
   // Measure container width for translateX math and keep it updated on resize
   useEffect(() => {
@@ -61,14 +61,12 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     [total]
   );
 
-  // Touch Handlers — live drag-follow, then snap to nearest on release.
-  // NOTE: dragging finger to the RIGHT (positive diffX) advances to the NEXT
-  // image, matching this project's original established swipe convention.
+  // Touch Handlers — live drag-follow, then snap to nearest on release
   const handleTouchStart = (e: React.TouchEvent) => {
     isDragging.current = true;
     lockedAxis.current = null;
     startX.current = e.touches[0].clientX;
-    startYRef.current = e.touches[0].clientY;
+    startY.current = e.touches[0].clientY;
     setIsDraggingState(true);
   };
 
@@ -77,7 +75,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     const x = e.touches[0].clientX;
     const y = e.touches[0].clientY;
     const diffX = x - startX.current;
-    const diffY = y - startYRef.current;
+    const diffY = y - startY.current;
 
     if (lockedAxis.current === null && (Math.abs(diffX) > 8 || Math.abs(diffY) > 8)) {
       lockedAxis.current = Math.abs(diffX) > Math.abs(diffY) * 1.2 ? 'horizontal' : 'vertical';
@@ -87,8 +85,8 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
       if (e.cancelable) e.preventDefault();
       // Resist dragging past the first/last image
       let offset = diffX;
-      if (selectedIndex === 0 && offset < 0) offset = offset / 2.5;
-      if (selectedIndex === total - 1 && offset > 0) offset = offset / 2.5;
+      if (selectedIndex === 0 && offset > 0) offset = offset / 2.5;
+      if (selectedIndex === total - 1 && offset < 0) offset = offset / 2.5;
       setDragOffsetPx(offset);
     }
   };
@@ -100,10 +98,9 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
 
     if (lockedAxis.current === 'horizontal' && containerWidth > 0) {
       const threshold = containerWidth * 0.18;
-      // Dragged right (positive) -> next. Dragged left (negative) -> previous.
-      if (dragOffsetPx > threshold) {
+      if (dragOffsetPx < -threshold) {
         goToIndex(selectedIndex + 1);
-      } else if (dragOffsetPx < -threshold) {
+      } else if (dragOffsetPx > threshold) {
         goToIndex(selectedIndex - 1);
       }
     }
@@ -111,7 +108,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     lockedAxis.current = null;
   };
 
-  // Mouse Drag Handlers for Desktop — same convention
+  // Mouse Drag Handlers for Desktop — same live-follow behavior
   const handleMouseDown = (e: React.MouseEvent) => {
     isDragging.current = true;
     lockedAxis.current = 'horizontal';
@@ -123,8 +120,8 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     if (!isDragging.current) return;
     const diffX = e.clientX - startX.current;
     let offset = diffX;
-    if (selectedIndex === 0 && offset < 0) offset = offset / 2.5;
-    if (selectedIndex === total - 1 && offset > 0) offset = offset / 2.5;
+    if (selectedIndex === 0 && offset > 0) offset = offset / 2.5;
+    if (selectedIndex === total - 1 && offset < 0) offset = offset / 2.5;
     setDragOffsetPx(offset);
   };
 
@@ -134,22 +131,19 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     setIsDraggingState(false);
     if (containerWidth > 0) {
       const threshold = containerWidth * 0.18;
-      if (dragOffsetPx > threshold) {
+      if (dragOffsetPx < -threshold) {
         goToIndex(selectedIndex + 1);
-      } else if (dragOffsetPx < -threshold) {
+      } else if (dragOffsetPx > threshold) {
         goToIndex(selectedIndex - 1);
       }
     }
     setDragOffsetPx(0);
   };
 
-  // Track math is forced to a plain, unambiguous LTR pixel coordinate system via
-  // the inline `direction: ltr` below, regardless of the page's own RTL direction.
-  // This guarantees item[i] always sits at exactly i*100% along the strip, so the
-  // transform formula below is always correct no matter the page's text direction.
-  // Dragging right (positive offset) reveals the NEXT image (per this project's
-  // established swipe convention), so we subtract the offset here.
-  const trackTransform = `translateX(calc(${selectedIndex * -100}% - ${dragOffsetPx}px))`;
+  const trackTransform =
+    containerWidth > 0
+      ? `translateX(calc(${selectedIndex * 100 * -1}% + ${dragOffsetPx}px))`
+      : `translateX(${selectedIndex * -100}%)`;
 
   return (
     <div id="product-gallery" className="w-full max-w-[480px] mx-auto select-none">
@@ -157,7 +151,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
       <div
         ref={containerRef}
         className="relative w-full aspect-square bg-gray-100 rounded-[18px] border border-[#E5E5E5] shadow-xs overflow-hidden cursor-grab active:cursor-grabbing"
-        style={{ touchAction: 'pan-y', direction: 'ltr' }}
+        style={{ touchAction: 'pan-y' }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -171,7 +165,6 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
             className="flex h-full"
             style={{
               width: `${total * 100}%`,
-              direction: 'ltr',
               transform: trackTransform,
               transition: isDraggingState ? 'none' : 'transform 280ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
@@ -224,7 +217,6 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
             className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center justify-center gap-1.5 z-10 pointer-events-auto"
             role="tablist"
             aria-label="صور المنتج"
-            style={{ direction: 'ltr' }}
           >
             {allImages.map((_, idx) => {
               const isActive = selectedIndex === idx;
