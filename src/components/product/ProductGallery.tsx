@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import { ShoppingBag } from 'lucide-react';
 import { getOptimizedImageUrl } from '../../lib/image';
@@ -9,196 +15,365 @@ interface ProductGalleryProps {
   title: string;
 }
 
-// How many slides on each side of the current one get their full-quality image
-// requested eagerly. Everything further away stays as a blur placeholder only
-// until the user swipes close enough to it.
-const EAGER_NEIGHBOR_RANGE = 1;
+const PRELOAD_RANGE = 1;
 
 export const ProductGallery: React.FC<ProductGalleryProps> = ({
   images = [],
   mainImage,
   title,
 }) => {
-  // Deduplicate and filter non-empty images
-  const allImages = Array.from(new Set([mainImage, ...images].filter(Boolean)));
+  // =========================================================
+  // Images
+  // =========================================================
+
+  const allImages = useMemo(
+    () => Array.from(new Set([mainImage, ...images].filter(Boolean))),
+    [mainImage, images]
+  );
+
   const total = allImages.length;
 
-  // Embla is configured with direction: 'rtl' to match the site's Arabic layout,
-  // so swiping/dragging feels natural and matches the project's established
-  // convention (drag toward the start of reading direction moves forward).
+  // =========================================================
+  // Embla
+  // =========================================================
+
   const [emblaRef, emblaApi] = useEmblaCarousel({
     direction: 'rtl',
     loop: false,
     align: 'start',
+    containScroll: 'trimSnaps',
     skipSnaps: false,
     dragFree: false,
+    duration: 22,
+    dragThreshold: 8,
   });
 
+  // =========================================================
+  // State
+  // =========================================================
+
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [loadedFlags, setLoadedFlags] = useState<boolean[]>(() => new Array(total).fill(false));
 
-  // Manual activation set: once an index has EVER been within the eager range
-  // (past or present), it stays "activated" permanently — its real <img> src
-  // gets set and starts downloading. This does NOT rely on the browser's native
-  // loading="lazy" viewport heuristic at all, because that heuristic is unreliable
-  // inside a transform-based carousel where every slide already sits within an
-  // already-visible, non-scrolling container (native lazy-load expects real page
-  // scrolling to detect proximity, which never happens here).
-  const [activatedIndices, setActivatedIndices] = useState<Set<number>>(
-    () => new Set(Array.from({ length: total }, (_, i) => i).filter((i) => Math.abs(i) <= EAGER_NEIGHBOR_RANGE))
+  const [loaded, setLoaded] = useState<boolean[]>(
+    () => new Array(total).fill(false)
   );
 
-  const proxiedUrls = allImages.map((img) =>
-    getOptimizedImageUrl(img, { width: 800, quality: 72, fit: 'contain' })
+  /*
+   * Activated means:
+   * the real image is allowed to start downloading.
+   *
+   * Once activated, it remains activated.
+   */
+  const [activated, setActivated] = useState<Set<number>>(
+    () =>
+      new Set(
+        Array.from({ length: total }, (_, index) => index).filter(
+          (index) => index <= PRELOAD_RANGE
+        )
+      )
   );
 
-  // Tiny, heavily-compressed blurred preview of each image — downloads almost
-  // instantly (well under 1KB) and fills the frame immediately while the full
-  // quality image above loads in behind it, instead of a blank/skeleton box.
-  const blurPreviewUrls = allImages.map((img) =>
-    getOptimizedImageUrl(img, { width: 24, quality: 30, fit: 'contain' })
+  // =========================================================
+  // URLs
+  // =========================================================
+
+  const optimizedUrls = useMemo(
+    () =>
+      allImages.map((image) =>
+        getOptimizedImageUrl(image, {
+          width: 800,
+          quality: 72,
+          fit: 'contain',
+        })
+      ),
+    [allImages]
   );
 
-  const markLoaded = (idx: number) => {
-    setLoadedFlags((prev) => {
-      if (prev[idx]) return prev;
-      const next = [...prev];
-      next[idx] = true;
+  const previewUrls = useMemo(
+    () =>
+      allImages.map((image) =>
+        getOptimizedImageUrl(image, {
+          width: 24,
+          quality: 25,
+          fit: 'contain',
+        })
+      ),
+    [allImages]
+  );
+
+  // =========================================================
+  // Loaded state
+  // =========================================================
+
+  const markLoaded = useCallback((index: number) => {
+    setLoaded((previous) => {
+      if (previous[index]) return previous;
+
+      const next = [...previous];
+      next[index] = true;
+
       return next;
     });
-  };
+  }, []);
 
-  // Sync React state with Embla's internal selected slide index, and expand the
-  // activated set to cover the new neighborhood every time the user navigates.
-  useEffect(() => {
-    if (!emblaApi) return;
-    const onSelect = () => {
-      const idx = emblaApi.selectedScrollSnap();
-      setSelectedIndex(idx);
-      setActivatedIndices((prev) => {
-        const next = new Set(prev);
-        for (let d = -EAGER_NEIGHBOR_RANGE; d <= EAGER_NEIGHBOR_RANGE; d++) {
-          const i = idx + d;
-          if (i >= 0 && i < total) next.add(i);
+  // =========================================================
+  // Activate images around current index
+  // =========================================================
+
+  const activateAround = useCallback(
+    (index: number) => {
+      if (!total) return;
+
+      setActivated((previous) => {
+        let changed = false;
+        const next = new Set(previous);
+
+        for (
+          let offset = -PRELOAD_RANGE;
+          offset <= PRELOAD_RANGE;
+          offset++
+        ) {
+          const target = index + offset;
+
+          if (
+            target >= 0 &&
+            target < total &&
+            !next.has(target)
+          ) {
+            next.add(target);
+            changed = true;
+          }
         }
-        return next;
-      });
-    };
-    emblaApi.on('select', onSelect);
-    // Also react to pointer-down (drag start) so a fast flick that lands beyond
-    // the currently-activated range still starts loading the destination image
-    // the moment the drag begins, not only after it snaps into place.
-    emblaApi.on('pointerDown', onSelect);
-    onSelect();
-    return () => {
-      emblaApi.off('select', onSelect);
-      emblaApi.off('pointerDown', onSelect);
-    };
-  }, [emblaApi, total]);
 
-  const goToIndex = useCallback(
-    (idx: number) => {
-      emblaApi?.scrollTo(idx);
+        return changed ? next : previous;
+      });
     },
-    [emblaApi]
+    [total]
   );
 
+  // =========================================================
+  // Embla events
+  // =========================================================
+
+  useEffect(() => {
+    if (!emblaApi || total <= 0) return;
+
+    const handleSelect = () => {
+      const index = emblaApi.selectedScrollSnap();
+
+      setSelectedIndex((previous) =>
+        previous === index ? previous : index
+      );
+
+      activateAround(index);
+    };
+
+    /*
+     * Important:
+     *
+     * When the user starts dragging, we make sure that the
+     * current slide's neighbors are already activated.
+     */
+    const handlePointerDown = () => {
+      const index = emblaApi.selectedScrollSnap();
+      activateAround(index);
+    };
+
+    emblaApi.on('select', handleSelect);
+    emblaApi.on('pointerDown', handlePointerDown);
+
+    handleSelect();
+
+    return () => {
+      emblaApi.off('select', handleSelect);
+      emblaApi.off('pointerDown', handlePointerDown);
+    };
+  }, [emblaApi, total, activateAround]);
+
+  // =========================================================
+  // Navigation
+  // =========================================================
+
+  const goToIndex = useCallback(
+    (index: number) => {
+      if (!emblaApi) return;
+
+      // Start preparing the destination immediately.
+      activateAround(index);
+
+      emblaApi.scrollTo(index);
+    },
+    [emblaApi, activateAround]
+  );
+
+  // =========================================================
+  // Empty gallery
+  // =========================================================
+
+  if (total === 0) {
+    return (
+      <div
+        id="product-gallery"
+        className="w-full max-w-[480px] mx-auto select-none"
+      >
+        <div className="relative w-full aspect-square overflow-hidden rounded-[18px] border border-[#E5E5E5] bg-gray-100 shadow-xs">
+          <div className="flex h-full w-full flex-col items-center justify-center bg-gray-50 text-gray-400">
+            <ShoppingBag className="mb-2 h-16 w-16 opacity-30" />
+
+            <span className="text-xs font-semibold">
+              صورة المنتج غير متوفرة
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div id="product-gallery" className="w-full max-w-[480px] mx-auto select-none">
-      {/* 1. Square 1:1 Image Box — real Embla-powered sliding track */}
-      <div className="relative w-full aspect-square bg-gray-100 rounded-[18px] border border-[#E5E5E5] shadow-xs overflow-hidden">
-        {allImages.length > 0 ? (
-          <div className="overflow-hidden h-full" ref={emblaRef} style={{ touchAction: 'pan-y' }}>
-            <div className="flex h-full">
-              {allImages.map((img, idx) => {
-                const activated = activatedIndices.has(idx);
-                return (
-                  <div key={img + idx} className="relative h-full shrink-0 grow-0 basis-full overflow-hidden">
-                    {/* Tiny blurred placeholder — loads almost instantly, shown until the full image is ready.
-                        This itself is cheap enough that we always fetch it eagerly for every slide, so the
-                        user never sees a completely blank frame even before reaching a far-away slide. */}
-                    {!loadedFlags[idx] && blurPreviewUrls[idx] && (
+    <div
+      id="product-gallery"
+      className="mx-auto w-full max-w-[480px] select-none"
+    >
+      {/* =====================================================
+          Gallery
+      ===================================================== */}
+
+      <div className="relative aspect-square w-full overflow-hidden rounded-[18px] border border-[#E5E5E5] bg-gray-100 shadow-xs">
+
+        <div
+          ref={emblaRef}
+          className="h-full overflow-hidden"
+          style={{
+            touchAction: 'pan-y',
+            WebkitTapHighlightColor: 'transparent',
+          }}
+        >
+          <div className="flex h-full">
+
+            {allImages.map((image, index) => {
+              const isActivated = activated.has(index);
+              const isLoaded = loaded[index];
+
+              /*
+               * Only show the blur preview for:
+               *
+               * current
+               * previous
+               * next
+               *
+               * This prevents unnecessary preview requests.
+               */
+              const showPreview =
+                Math.abs(index - selectedIndex) <= PRELOAD_RANGE;
+
+              return (
+                <div
+                  key={`${image}-${index}`}
+                  className="relative h-full min-w-0 shrink-0 grow-0 basis-full overflow-hidden"
+                >
+                  {/* =================================================
+                      Blur preview
+                  ================================================= */}
+
+                  {!isLoaded &&
+                    showPreview &&
+                    previewUrls[index] && (
                       <img
-                        src={blurPreviewUrls[idx]}
+                        src={previewUrls[index]}
                         alt=""
                         aria-hidden="true"
                         draggable={false}
-                        loading="eager"
-                        fetchPriority={idx === 0 ? 'high' : 'auto'}
-                        className="absolute inset-0 z-0 w-full h-full object-cover object-center scale-110"
-                        style={{ filter: 'blur(14px)' }}
-                      />
-                    )}
-
-                    {/* The full-quality image's src is only rendered once this slide has been
-                        "activated" (current, a near neighbor, or previously visited) — this is
-                        a manual, explicit trigger instead of relying on native loading="lazy",
-                        which does not reliably detect proximity inside a transform-based,
-                        already-visible carousel like this one. */}
-                    {activated && (
-                      <img
-                        ref={(node) => {
-                          if (node && node.complete && node.naturalWidth > 0) {
-                            markLoaded(idx);
-                          }
-                        }}
-                        src={proxiedUrls[idx]}
-                        alt={`${title} - صورة ${idx + 1}`}
-                        fetchPriority={idx === 0 ? 'high' : 'auto'}
-                        loading="eager"
-                        referrerPolicy="no-referrer"
                         decoding="async"
-                        draggable={false}
-                        className={`relative z-1 w-full h-full object-cover object-center transition-opacity duration-200 ${
-                          loadedFlags[idx] ? 'opacity-100' : 'opacity-0'
-                        }`}
-                        onLoad={() => markLoaded(idx)}
-                        onError={(e) => {
-                          markLoaded(idx);
-                          const target = e.currentTarget;
-                          if (img && target.src !== img) {
-                            target.src = img;
-                          }
+                        loading={index === 0 ? 'eager' : 'lazy'}
+                        fetchPriority={
+                          index === 0 ? 'high' : 'low'
+                        }
+                        className="absolute inset-0 h-full w-full scale-110 object-cover object-center"
+                        style={{
+                          filter: 'blur(14px)',
                         }}
                       />
                     )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 bg-gray-50">
-            <ShoppingBag className="w-16 h-16 mb-2 opacity-30" />
-            <span className="text-xs font-semibold">صورة المنتج غير متوفرة</span>
-          </div>
-        )}
 
-        {/* Clear & Prominent White Dots Indicator */}
+                  {/* =================================================
+                      Real image
+                  ================================================= */}
+
+                  {isActivated && (
+                    <img
+                      src={optimizedUrls[index]}
+                      alt={`${title} - صورة ${index + 1}`}
+                      draggable={false}
+                      decoding="async"
+                      loading="eager"
+                      fetchPriority={
+                        index === 0 ? 'high' : 'auto'
+                      }
+                      referrerPolicy="no-referrer"
+                      width={800}
+                      height={800}
+                      className={[
+                        'relative z-[1] h-full w-full object-cover object-center',
+                        'transition-opacity duration-150 ease-out',
+                        isLoaded ? 'opacity-100' : 'opacity-0',
+                      ].join(' ')}
+                      onLoad={() => markLoaded(index)}
+                      onError={(event) => {
+                        const target = event.currentTarget;
+
+                        /*
+                         * Fallback to the original image
+                         * if the optimized URL fails.
+                         */
+                        if (
+                          image &&
+                          target.src !== image
+                        ) {
+                          target.src = image;
+                        } else {
+                          markLoaded(index);
+                        }
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* =====================================================
+            Dots
+        ===================================================== */}
+
         {total > 1 && (
           <div
-            className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center justify-center gap-1.5 z-10 pointer-events-auto"
+            className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center justify-center gap-1.5"
             role="tablist"
             aria-label="صور المنتج"
           >
-            {allImages.map((_, idx) => {
-              const isActive = selectedIndex === idx;
+            {allImages.map((_, index) => {
+              const active = selectedIndex === index;
+
               return (
                 <button
-                  key={idx}
+                  key={index}
                   type="button"
                   role="tab"
-                  aria-selected={isActive}
-                  aria-label={`عرض الصورة ${idx + 1} من ${total}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    goToIndex(idx);
+                  aria-selected={active}
+                  aria-label={`عرض الصورة ${index + 1} من ${total}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    goToIndex(index);
                   }}
-                  className={`transition-all duration-300 cursor-pointer rounded-full p-0 border-none outline-none shadow-sm ${
-                    isActive
-                      ? 'w-6 h-2 bg-white ring-1 ring-black/20 shadow-md'
-                      : 'w-2 h-2 bg-white/70 hover:bg-white ring-1 ring-black/10'
-                  }`}
+                  className={[
+                    'cursor-pointer rounded-full border-none p-0 outline-none',
+                    'shadow-sm transition-all duration-200',
+                    'focus-visible:ring-2 focus-visible:ring-white/80',
+                    active
+                      ? 'h-2 w-6 bg-white shadow-md ring-1 ring-black/20'
+                      : 'h-2 w-2 bg-white/70 ring-1 ring-black/10 hover:bg-white',
+                  ].join(' ')}
                 />
               );
             })}
