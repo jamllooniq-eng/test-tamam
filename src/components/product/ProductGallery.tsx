@@ -3,7 +3,6 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
-  useRef,
 } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import { ShoppingBag } from 'lucide-react';
@@ -15,6 +14,7 @@ interface ProductGalleryProps {
   title: string;
 }
 
+// Current image + one image before + one image after
 const PRELOAD_RANGE = 1;
 
 export const ProductGallery: React.FC<ProductGalleryProps> = ({
@@ -54,17 +54,12 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
 
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  const [loaded, setLoaded] = useState<boolean[]>(
-    () => new Array(total).fill(false)
-  );
-
   /*
-   * Activated means:
-   * the real image is allowed to start downloading.
-   *
-   * Once activated, it remains activated.
+   * Once an image is activated, it remains activated.
+   * This prevents the browser from repeatedly creating/removing
+   * image requests when the user goes back and forth.
    */
-  const [activated, setActivated] = useState<Set<number>>(
+  const [activatedIndices, setActivatedIndices] = useState<Set<number>>(
     () =>
       new Set(
         Array.from({ length: total }, (_, index) => index).filter(
@@ -73,8 +68,15 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
       )
   );
 
+  /*
+   * True only after the actual high-quality image has loaded.
+   */
+  const [loadedFlags, setLoadedFlags] = useState<boolean[]>(
+    () => new Array(total).fill(false)
+  );
+
   // =========================================================
-  // URLs
+  // Optimized image URLs
   // =========================================================
 
   const optimizedUrls = useMemo(
@@ -89,12 +91,18 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     [allImages]
   );
 
-  const previewUrls = useMemo(
+  /*
+   * Small LQIP instead of an aggressively blurred 24px image.
+   *
+   * This gives the user an immediate visual hint of the actual
+   * product without making the image look overly blurry.
+   */
+  const lqipUrls = useMemo(
     () =>
       allImages.map((image) =>
         getOptimizedImageUrl(image, {
-          width: 24,
-          quality: 25,
+          width: 64,
+          quality: 30,
           fit: 'contain',
         })
       ),
@@ -102,11 +110,11 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
   );
 
   // =========================================================
-  // Loaded state
+  // Mark image as loaded
   // =========================================================
 
   const markLoaded = useCallback((index: number) => {
-    setLoaded((previous) => {
+    setLoadedFlags((previous) => {
       if (previous[index]) return previous;
 
       const next = [...previous];
@@ -117,14 +125,14 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
   }, []);
 
   // =========================================================
-  // Activate images around current index
+  // Activate current image + neighbors
   // =========================================================
 
   const activateAround = useCallback(
     (index: number) => {
-      if (!total) return;
+      if (total === 0) return;
 
-      setActivated((previous) => {
+      setActivatedIndices((previous) => {
         let changed = false;
         const next = new Set(previous);
 
@@ -156,7 +164,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
   // =========================================================
 
   useEffect(() => {
-    if (!emblaApi || total <= 0) return;
+    if (!emblaApi || total === 0) return;
 
     const handleSelect = () => {
       const index = emblaApi.selectedScrollSnap();
@@ -165,14 +173,13 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
         previous === index ? previous : index
       );
 
+      // Activate destination + neighbors immediately.
       activateAround(index);
     };
 
     /*
-     * Important:
-     *
-     * When the user starts dragging, we make sure that the
-     * current slide's neighbors are already activated.
+     * When the user starts dragging, make sure the nearby
+     * images are already allowed to download.
      */
     const handlePointerDown = () => {
       const index = emblaApi.selectedScrollSnap();
@@ -197,26 +204,27 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
   const goToIndex = useCallback(
     (index: number) => {
       if (!emblaApi) return;
+      if (index < 0 || index >= total) return;
 
-      // Start preparing the destination immediately.
+      // Begin loading before the carousel moves.
       activateAround(index);
 
       emblaApi.scrollTo(index);
     },
-    [emblaApi, activateAround]
+    [emblaApi, total, activateAround]
   );
 
   // =========================================================
-  // Empty gallery
+  // Empty state
   // =========================================================
 
   if (total === 0) {
     return (
       <div
         id="product-gallery"
-        className="w-full max-w-[480px] mx-auto select-none"
+        className="mx-auto w-full max-w-[480px] select-none"
       >
-        <div className="relative w-full aspect-square overflow-hidden rounded-[18px] border border-[#E5E5E5] bg-gray-100 shadow-xs">
+        <div className="relative aspect-square w-full overflow-hidden rounded-[18px] border border-[#E5E5E5] bg-gray-100 shadow-xs">
           <div className="flex h-full w-full flex-col items-center justify-center bg-gray-50 text-gray-400">
             <ShoppingBag className="mb-2 h-16 w-16 opacity-30" />
 
@@ -235,7 +243,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
       className="mx-auto w-full max-w-[480px] select-none"
     >
       {/* =====================================================
-          Gallery
+          Main Gallery
       ===================================================== */}
 
       <div className="relative aspect-square w-full overflow-hidden rounded-[18px] border border-[#E5E5E5] bg-gray-100 shadow-xs">
@@ -251,19 +259,14 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
           <div className="flex h-full">
 
             {allImages.map((image, index) => {
-              const isActivated = activated.has(index);
-              const isLoaded = loaded[index];
+              const isActivated = activatedIndices.has(index);
+              const isLoaded = loadedFlags[index];
 
               /*
-               * Only show the blur preview for:
-               *
-               * current
-               * previous
-               * next
-               *
-               * This prevents unnecessary preview requests.
+               * Only the current image and its neighbors receive
+               * an LQIP preview.
                */
-              const showPreview =
+              const shouldShowLqip =
                 Math.abs(index - selectedIndex) <= PRELOAD_RANGE;
 
               return (
@@ -272,14 +275,14 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
                   className="relative h-full min-w-0 shrink-0 grow-0 basis-full overflow-hidden"
                 >
                   {/* =================================================
-                      Blur preview
+                      LQIP
                   ================================================= */}
 
                   {!isLoaded &&
-                    showPreview &&
-                    previewUrls[index] && (
+                    shouldShowLqip &&
+                    lqipUrls[index] && (
                       <img
-                        src={previewUrls[index]}
+                        src={lqipUrls[index]}
                         alt=""
                         aria-hidden="true"
                         draggable={false}
@@ -288,15 +291,12 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
                         fetchPriority={
                           index === 0 ? 'high' : 'low'
                         }
-                        className="absolute inset-0 h-full w-full scale-110 object-cover object-center"
-                        style={{
-                          filter: 'blur(14px)',
-                        }}
+                        className="absolute inset-0 h-full w-full object-cover object-center"
                       />
                     )}
 
                   {/* =================================================
-                      Real image
+                      Full Quality Image
                   ================================================= */}
 
                   {isActivated && (
@@ -313,17 +313,20 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
                       width={800}
                       height={800}
                       className={[
-                        'relative z-[1] h-full w-full object-cover object-center',
+                        'relative z-[1] h-full w-full',
+                        'object-cover object-center',
                         'transition-opacity duration-150 ease-out',
-                        isLoaded ? 'opacity-100' : 'opacity-0',
+                        isLoaded
+                          ? 'opacity-100'
+                          : 'opacity-0',
                       ].join(' ')}
                       onLoad={() => markLoaded(index)}
                       onError={(event) => {
                         const target = event.currentTarget;
 
                         /*
-                         * Fallback to the original image
-                         * if the optimized URL fails.
+                         * If the optimized URL fails,
+                         * fall back to the original image.
                          */
                         if (
                           image &&
@@ -343,7 +346,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
         </div>
 
         {/* =====================================================
-            Dots
+            Dots Indicator
         ===================================================== */}
 
         {total > 1 && (
@@ -353,24 +356,25 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
             aria-label="صور المنتج"
           >
             {allImages.map((_, index) => {
-              const active = selectedIndex === index;
+              const isActive = selectedIndex === index;
 
               return (
                 <button
                   key={index}
                   type="button"
                   role="tab"
-                  aria-selected={active}
+                  aria-selected={isActive}
                   aria-label={`عرض الصورة ${index + 1} من ${total}`}
                   onClick={(event) => {
                     event.stopPropagation();
                     goToIndex(index);
                   }}
                   className={[
-                    'cursor-pointer rounded-full border-none p-0 outline-none',
-                    'shadow-sm transition-all duration-200',
+                    'cursor-pointer rounded-full border-none p-0',
+                    'outline-none shadow-sm',
+                    'transition-all duration-200',
                     'focus-visible:ring-2 focus-visible:ring-white/80',
-                    active
+                    isActive
                       ? 'h-2 w-6 bg-white shadow-md ring-1 ring-black/20'
                       : 'h-2 w-2 bg-white/70 ring-1 ring-black/10 hover:bg-white',
                   ].join(' ')}
