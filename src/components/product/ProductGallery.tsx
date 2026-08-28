@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import { ShoppingBag } from 'lucide-react';
 import { getOptimizedImageUrl } from '../../lib/image';
@@ -10,8 +10,8 @@ interface ProductGalleryProps {
 }
 
 // How many slides on each side of the current one get their full-quality image
-// requested eagerly. Everything further away stays lazy until the user scrolls
-// close enough, so opening the page never downloads the entire gallery at once.
+// requested eagerly. Everything further away stays as a blur placeholder only
+// until the user swipes close enough to it.
 const EAGER_NEIGHBOR_RANGE = 1;
 
 export const ProductGallery: React.FC<ProductGalleryProps> = ({
@@ -37,6 +37,17 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [loadedFlags, setLoadedFlags] = useState<boolean[]>(() => new Array(total).fill(false));
 
+  // Manual activation set: once an index has EVER been within the eager range
+  // (past or present), it stays "activated" permanently — its real <img> src
+  // gets set and starts downloading. This does NOT rely on the browser's native
+  // loading="lazy" viewport heuristic at all, because that heuristic is unreliable
+  // inside a transform-based carousel where every slide already sits within an
+  // already-visible, non-scrolling container (native lazy-load expects real page
+  // scrolling to detect proximity, which never happens here).
+  const [activatedIndices, setActivatedIndices] = useState<Set<number>>(
+    () => new Set(Array.from({ length: total }, (_, i) => i).filter((i) => Math.abs(i) <= EAGER_NEIGHBOR_RANGE))
+  );
+
   const proxiedUrls = allImages.map((img) =>
     getOptimizedImageUrl(img, { width: 800, quality: 72, fit: 'contain' })
   );
@@ -57,16 +68,33 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     });
   };
 
-  // Sync React state with Embla's internal selected slide index
+  // Sync React state with Embla's internal selected slide index, and expand the
+  // activated set to cover the new neighborhood every time the user navigates.
   useEffect(() => {
     if (!emblaApi) return;
-    const onSelect = () => setSelectedIndex(emblaApi.selectedScrollSnap());
+    const onSelect = () => {
+      const idx = emblaApi.selectedScrollSnap();
+      setSelectedIndex(idx);
+      setActivatedIndices((prev) => {
+        const next = new Set(prev);
+        for (let d = -EAGER_NEIGHBOR_RANGE; d <= EAGER_NEIGHBOR_RANGE; d++) {
+          const i = idx + d;
+          if (i >= 0 && i < total) next.add(i);
+        }
+        return next;
+      });
+    };
     emblaApi.on('select', onSelect);
+    // Also react to pointer-down (drag start) so a fast flick that lands beyond
+    // the currently-activated range still starts loading the destination image
+    // the moment the drag begins, not only after it snaps into place.
+    emblaApi.on('pointerDown', onSelect);
     onSelect();
     return () => {
       emblaApi.off('select', onSelect);
+      emblaApi.off('pointerDown', onSelect);
     };
-  }, [emblaApi]);
+  }, [emblaApi, total]);
 
   const goToIndex = useCallback(
     (idx: number) => {
@@ -74,13 +102,6 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     },
     [emblaApi]
   );
-
-  // Only fetch the current slide's full-quality image plus a small neighboring
-  // range eagerly. Everything else uses native browser lazy-loading, so the
-  // very first page load never requests the entire gallery's full-size images
-  // at once — critical for products with many photos on slower connections.
-  const shouldLoadEagerly = (idx: number) =>
-    Math.abs(idx - selectedIndex) <= EAGER_NEIGHBOR_RANGE;
 
   return (
     <div id="product-gallery" className="w-full max-w-[480px] mx-auto select-none">
@@ -90,7 +111,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
           <div className="overflow-hidden h-full" ref={emblaRef} style={{ touchAction: 'pan-y' }}>
             <div className="flex h-full">
               {allImages.map((img, idx) => {
-                const eager = shouldLoadEagerly(idx);
+                const activated = activatedIndices.has(idx);
                 return (
                   <div key={img + idx} className="relative h-full shrink-0 grow-0 basis-full overflow-hidden">
                     {/* Tiny blurred placeholder — loads almost instantly, shown until the full image is ready.
@@ -109,31 +130,38 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
                       />
                     )}
 
-                    <img
-                      ref={(node) => {
-                        if (node && node.complete && node.naturalWidth > 0) {
+                    {/* The full-quality image's src is only rendered once this slide has been
+                        "activated" (current, a near neighbor, or previously visited) — this is
+                        a manual, explicit trigger instead of relying on native loading="lazy",
+                        which does not reliably detect proximity inside a transform-based,
+                        already-visible carousel like this one. */}
+                    {activated && (
+                      <img
+                        ref={(node) => {
+                          if (node && node.complete && node.naturalWidth > 0) {
+                            markLoaded(idx);
+                          }
+                        }}
+                        src={proxiedUrls[idx]}
+                        alt={`${title} - صورة ${idx + 1}`}
+                        fetchPriority={idx === 0 ? 'high' : 'auto'}
+                        loading="eager"
+                        referrerPolicy="no-referrer"
+                        decoding="async"
+                        draggable={false}
+                        className={`relative z-1 w-full h-full object-cover object-center transition-opacity duration-200 ${
+                          loadedFlags[idx] ? 'opacity-100' : 'opacity-0'
+                        }`}
+                        onLoad={() => markLoaded(idx)}
+                        onError={(e) => {
                           markLoaded(idx);
-                        }
-                      }}
-                      src={proxiedUrls[idx]}
-                      alt={`${title} - صورة ${idx + 1}`}
-                      fetchPriority={idx === 0 ? 'high' : 'auto'}
-                      loading={eager ? 'eager' : 'lazy'}
-                      referrerPolicy="no-referrer"
-                      decoding="async"
-                      draggable={false}
-                      className={`relative z-1 w-full h-full object-cover object-center transition-opacity duration-200 ${
-                        loadedFlags[idx] ? 'opacity-100' : 'opacity-0'
-                      }`}
-                      onLoad={() => markLoaded(idx)}
-                      onError={(e) => {
-                        markLoaded(idx);
-                        const target = e.currentTarget;
-                        if (img && target.src !== img) {
-                          target.src = img;
-                        }
-                      }}
-                    />
+                          const target = e.currentTarget;
+                          if (img && target.src !== img) {
+                            target.src = img;
+                          }
+                        }}
+                      />
+                    )}
                   </div>
                 );
               })}
