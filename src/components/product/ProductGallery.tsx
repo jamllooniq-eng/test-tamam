@@ -9,6 +9,11 @@ interface ProductGalleryProps {
   title: string;
 }
 
+// How many slides on each side of the current one get their full-quality image
+// requested eagerly. Everything further away stays lazy until the user scrolls
+// close enough, so opening the page never downloads the entire gallery at once.
+const EAGER_NEIGHBOR_RANGE = 1;
+
 export const ProductGallery: React.FC<ProductGalleryProps> = ({
   images = [],
   mainImage,
@@ -70,6 +75,13 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     [emblaApi]
   );
 
+  // Only fetch the current slide's full-quality image plus a small neighboring
+  // range eagerly. Everything else uses native browser lazy-loading, so the
+  // very first page load never requests the entire gallery's full-size images
+  // at once — critical for products with many photos on slower connections.
+  const shouldLoadEagerly = (idx: number) =>
+    Math.abs(idx - selectedIndex) <= EAGER_NEIGHBOR_RANGE;
+
   return (
     <div id="product-gallery" className="w-full max-w-[480px] mx-auto select-none">
       {/* 1. Square 1:1 Image Box — real Embla-powered sliding track */}
@@ -77,49 +89,54 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
         {allImages.length > 0 ? (
           <div className="overflow-hidden h-full" ref={emblaRef} style={{ touchAction: 'pan-y' }}>
             <div className="flex h-full">
-              {allImages.map((img, idx) => (
-                <div key={img + idx} className="relative h-full shrink-0 grow-0 basis-full overflow-hidden">
-                  {/* Tiny blurred placeholder — loads almost instantly, shown until the full image is ready */}
-                  {!loadedFlags[idx] && blurPreviewUrls[idx] && (
-                    <img
-                      src={blurPreviewUrls[idx]}
-                      alt=""
-                      aria-hidden="true"
-                      draggable={false}
-                      loading="eager"
-                      fetchPriority={idx === 0 ? 'high' : 'auto'}
-                      className="absolute inset-0 z-0 w-full h-full object-cover object-center scale-110"
-                      style={{ filter: 'blur(14px)' }}
-                    />
-                  )}
+              {allImages.map((img, idx) => {
+                const eager = shouldLoadEagerly(idx);
+                return (
+                  <div key={img + idx} className="relative h-full shrink-0 grow-0 basis-full overflow-hidden">
+                    {/* Tiny blurred placeholder — loads almost instantly, shown until the full image is ready.
+                        This itself is cheap enough that we always fetch it eagerly for every slide, so the
+                        user never sees a completely blank frame even before reaching a far-away slide. */}
+                    {!loadedFlags[idx] && blurPreviewUrls[idx] && (
+                      <img
+                        src={blurPreviewUrls[idx]}
+                        alt=""
+                        aria-hidden="true"
+                        draggable={false}
+                        loading="eager"
+                        fetchPriority={idx === 0 ? 'high' : 'auto'}
+                        className="absolute inset-0 z-0 w-full h-full object-cover object-center scale-110"
+                        style={{ filter: 'blur(14px)' }}
+                      />
+                    )}
 
-                  <img
-                    ref={(node) => {
-                      if (node && node.complete && node.naturalWidth > 0) {
+                    <img
+                      ref={(node) => {
+                        if (node && node.complete && node.naturalWidth > 0) {
+                          markLoaded(idx);
+                        }
+                      }}
+                      src={proxiedUrls[idx]}
+                      alt={`${title} - صورة ${idx + 1}`}
+                      fetchPriority={idx === 0 ? 'high' : 'auto'}
+                      loading={eager ? 'eager' : 'lazy'}
+                      referrerPolicy="no-referrer"
+                      decoding="async"
+                      draggable={false}
+                      className={`relative z-1 w-full h-full object-cover object-center transition-opacity duration-200 ${
+                        loadedFlags[idx] ? 'opacity-100' : 'opacity-0'
+                      }`}
+                      onLoad={() => markLoaded(idx)}
+                      onError={(e) => {
                         markLoaded(idx);
-                      }
-                    }}
-                    src={proxiedUrls[idx]}
-                    alt={`${title} - صورة ${idx + 1}`}
-                    fetchPriority={idx === 0 ? 'high' : 'auto'}
-                    loading="eager"
-                    referrerPolicy="no-referrer"
-                    decoding="async"
-                    draggable={false}
-                    className={`relative z-1 w-full h-full object-cover object-center transition-opacity duration-200 ${
-                      loadedFlags[idx] ? 'opacity-100' : 'opacity-0'
-                    }`}
-                    onLoad={() => markLoaded(idx)}
-                    onError={(e) => {
-                      markLoaded(idx);
-                      const target = e.currentTarget;
-                      if (img && target.src !== img) {
-                        target.src = img;
-                      }
-                    }}
-                  />
-                </div>
-              ))}
+                        const target = e.currentTarget;
+                        if (img && target.src !== img) {
+                          target.src = img;
+                        }
+                      }}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
         ) : (
