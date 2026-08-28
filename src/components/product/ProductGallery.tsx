@@ -36,6 +36,13 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     getOptimizedImageUrl(img, { width: 800, quality: 72, fit: 'contain' })
   );
 
+  // Tiny, heavily-compressed blurred preview of each image — downloads almost
+  // instantly (well under 1KB) and fills the frame immediately while the full
+  // quality image above loads in behind it, instead of a blank/skeleton box.
+  const blurPreviewUrls = allImages.map((img) =>
+    getOptimizedImageUrl(img, { width: 24, quality: 30, fit: 'contain' })
+  );
+
   const markLoaded = (idx: number) => {
     setLoadedFlags((prev) => {
       if (prev[idx]) return prev;
@@ -71,12 +78,21 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
           <div className="overflow-hidden h-full" ref={emblaRef} style={{ touchAction: 'pan-y' }}>
             <div className="flex h-full">
               {allImages.map((img, idx) => (
-                <div key={img + idx} className="relative h-full shrink-0 grow-0 basis-full">
-                  {!loadedFlags[idx] && (
-                    <div className="absolute inset-0 bg-gray-100 flex items-center justify-center z-0 pointer-events-none">
-                      <ShoppingBag className="w-10 h-10 text-gray-300 animate-pulse" />
-                    </div>
+                <div key={img + idx} className="relative h-full shrink-0 grow-0 basis-full overflow-hidden">
+                  {/* Tiny blurred placeholder — loads almost instantly, shown until the full image is ready */}
+                  {!loadedFlags[idx] && blurPreviewUrls[idx] && (
+                    <img
+                      src={blurPreviewUrls[idx]}
+                      alt=""
+                      aria-hidden="true"
+                      draggable={false}
+                      loading="eager"
+                      fetchPriority={idx === 0 ? 'high' : 'auto'}
+                      className="absolute inset-0 z-0 w-full h-full object-cover object-center scale-110"
+                      style={{ filter: 'blur(14px)' }}
+                    />
                   )}
+
                   <img
                     ref={(node) => {
                       if (node && node.complete && node.naturalWidth > 0) {
@@ -90,7 +106,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
                     referrerPolicy="no-referrer"
                     decoding="async"
                     draggable={false}
-                    className={`relative z-1 w-full h-full object-cover object-center transition-opacity duration-150 ${
+                    className={`relative z-1 w-full h-full object-cover object-center transition-opacity duration-200 ${
                       loadedFlags[idx] ? 'opacity-100' : 'opacity-0'
                     }`}
                     onLoad={() => markLoaded(idx)}
