@@ -150,15 +150,15 @@ export const ProductDetailsBox: React.FC<ProductDetailsBoxProps> = ({
 
   return (
     <div
-      id="product-details-box"
+      id={`product-details-box-${variant}`}
       className="rounded-2xl bg-white border border-gray-200/90 p-4 sm:p-6 shadow-sm space-y-5"
     >
       {/* 1. Product Title Heading */}
       {showHeader && title && (
         <div className={`space-y-3.5 min-w-0 ${showBody ? 'pb-4 border-b border-gray-100' : ''}`}>
           <h1
-            id="product-title-heading"
-            className="text-lg sm:text-2xl md:text-3xl font-black text-gray-900 leading-snug tracking-tight break-words"
+            id={`product-title-heading-${variant}`}
+            className="text-base sm:text-xl md:text-2xl font-black text-gray-900 leading-snug tracking-tight break-words"
           >
             {title}
           </h1>
