@@ -126,8 +126,11 @@ export const FunnelLandingPage: React.FC<FunnelLandingPageProps> = ({
                 />
               </div>
 
-              {/* MOBILE ONLY: Order Form right after title + badges */}
-              <div className="lg:hidden">
+              {/* MOBILE ONLY: Order Form right after title + badges
+                  NOTE: id="order-form-container" lives HERE on mobile because
+                  StickyBottomBar's IntersectionObserver watches this id and
+                  StickyBottomBar itself is md:hidden (mobile-only). */}
+              <div id="order-form-container" className="lg:hidden">
                 <OrderForm
                   product={product}
                   onOrderSuccess={onOrderSuccess}
@@ -154,8 +157,10 @@ export const FunnelLandingPage: React.FC<FunnelLandingPageProps> = ({
               </div>
             </div>
 
-            {/* Column 2: DIRECT 1-STEP ORDER FORM (Sticky on desktop) - DESKTOP ONLY */}
-            <div id="order-form-container" className="hidden lg:block lg:col-span-5 scroll-mt-4 mt-6 lg:mt-0 lg:sticky lg:top-4 min-w-0">
+            {/* Column 2: DIRECT 1-STEP ORDER FORM (Sticky on desktop) - DESKTOP ONLY
+                NOTE: no id here anymore — StickyBottomBar is md:hidden anyway,
+                so this desktop copy doesn't need to be observed. */}
+            <div className="hidden lg:block lg:col-span-5 scroll-mt-4 mt-6 lg:mt-0 lg:sticky lg:top-4 min-w-0">
               <div className="w-full min-w-0">
                 {/* Order Form Card */}
                 <OrderForm
