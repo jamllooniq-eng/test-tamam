@@ -116,16 +116,46 @@ export const FunnelLandingPage: React.FC<FunnelLandingPageProps> = ({
                 title={product.title}
               />
 
-              {/* Product Details Box including Title, Trust Badges, & Provider Description */}
-              <ProductDetailsBox
-                title={product.title}
-                description={product.description}
-                features={product.features}
-              />
+              {/* MOBILE ONLY: Title + Trust Badges right after the image */}
+              <div className="lg:hidden">
+                <ProductDetailsBox
+                  title={product.title}
+                  description={product.description}
+                  features={product.features}
+                  variant="header"
+                />
+              </div>
+
+              {/* MOBILE ONLY: Order Form right after title + badges */}
+              <div className="lg:hidden">
+                <OrderForm
+                  product={product}
+                  onOrderSuccess={onOrderSuccess}
+                />
+              </div>
+
+              {/* DESKTOP: Full Product Details Box (title + badges + description) unchanged */}
+              <div className="hidden lg:block">
+                <ProductDetailsBox
+                  title={product.title}
+                  description={product.description}
+                  features={product.features}
+                  variant="full"
+                />
+              </div>
+
+              {/* MOBILE ONLY: Description body below the order form */}
+              <div className="lg:hidden">
+                <ProductDetailsBox
+                  description={product.description}
+                  features={product.features}
+                  variant="body"
+                />
+              </div>
             </div>
 
-            {/* Column 2: DIRECT 1-STEP ORDER FORM (Sticky on desktop) */}
-            <div id="order-form-container" className="lg:col-span-5 scroll-mt-4 mt-6 lg:mt-0 lg:sticky lg:top-4 min-w-0">
+            {/* Column 2: DIRECT 1-STEP ORDER FORM (Sticky on desktop) - DESKTOP ONLY */}
+            <div id="order-form-container" className="hidden lg:block lg:col-span-5 scroll-mt-4 mt-6 lg:mt-0 lg:sticky lg:top-4 min-w-0">
               <div className="w-full min-w-0">
                 {/* Order Form Card */}
                 <OrderForm
