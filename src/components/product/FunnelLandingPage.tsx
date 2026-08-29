@@ -47,21 +47,14 @@ export const FunnelLandingPage: React.FC<FunnelLandingPageProps> = ({
   onOrderSuccess,
   onOpenPolicy,
 }) => {
+  // NOTE: OrderForm now renders exactly ONCE in the DOM (single instance,
+  // repositioned via CSS Grid `order`/`col-start` between mobile and desktop),
+  // so its internal id="order-form-card" is no longer duplicated. A plain
+  // getElementById lookup is sufficient and reliable again.
   const scrollToOrder = () => {
-    // NOTE: OrderForm now renders twice in the DOM (a mobile copy and a
-    // desktop copy, toggled with CSS `hidden`/`lg:hidden`), so its internal
-    // id="order-form-card" is duplicated. getElementById would always return
-    // the FIRST one in DOM order even if it's the hidden one, so we instead
-    // look through all matches and scroll to whichever is actually visible.
-    const candidates = document.querySelectorAll(
-      '[id="order-form-card"], [id="order-form-container"]'
-    );
-    for (const el of Array.from(candidates)) {
-      const htmlEl = el as HTMLElement;
-      if (htmlEl.offsetParent !== null) {
-        htmlEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        return;
-      }
+    const formElement = document.getElementById('order-form-card') || document.getElementById('order-form-container');
+    if (formElement) {
+      formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
 
@@ -81,114 +74,112 @@ export const FunnelLandingPage: React.FC<FunnelLandingPageProps> = ({
       {/* Main Funnel Landing Content */}
       <main className="flex-1 min-w-0">
         <div className="max-w-4xl lg:max-w-6xl mx-auto px-3 sm:px-6 pt-4 pb-6 sm:pt-5 sm:pb-8 space-y-6 sm:space-y-8 min-w-0">
-          
-          {/* Two-Column Section on Desktop (lg:), Sequential on Mobile/Tablet */}
-          <div className="flex flex-col lg:grid lg:grid-cols-12 lg:gap-8 lg:items-start min-w-0">
-            
-            {/* Column 1 (Gallery, Price Banner, & Product Details Box) */}
-            <div className="lg:col-span-7 space-y-2 sm:space-y-2.5 min-w-0">
-              {/* Prominent, Premium & Eye-Catching Price & Delivery Banner */}
-              <div className="rounded-2xl bg-gradient-to-l from-[#22A39E]/[0.07] via-white to-[#22A39E]/[0.07] border-2 border-[#22A39E]/30 p-3 sm:px-5 sm:py-3.5 shadow-xs transition-all hover:border-[#22A39E]/50">
-                <div className="flex items-center justify-between gap-3 sm:gap-6 flex-nowrap min-w-0">
-                  {/* Price Section */}
-                  <div className="flex items-baseline gap-1.5 sm:gap-2 shrink-0">
-                    <span className="text-xs sm:text-sm font-extrabold text-gray-700">السعر:</span>
-                    <span className="text-xl sm:text-2xl md:text-3xl font-black text-[#177773] tracking-tight drop-shadow-2xs">
-                      {product.price.toLocaleString('en-US')}
-                    </span>
-                    <span className="text-xs sm:text-sm font-bold text-gray-600 mr-0.5">
-                      د.ع
-                    </span>
-                    {product.old_price && product.old_price > product.price && (
-                      <span className="text-xs sm:text-sm text-gray-400 line-through mr-1.5 font-medium">
-                        {product.old_price.toLocaleString('en-US')}
-                      </span>
-                    )}
-                  </div>
 
-                  {/* Badges Section (Delivery + Discount) */}
-                  <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-                    {discountPercentage && (
-                      <span className="inline-flex items-center bg-[#22A39E] text-white text-[11px] sm:text-xs font-black px-2.5 py-1 rounded-xl shadow-2xs">
-                        خصم {discountPercentage}%
-                      </span>
-                    )}
-                    <div className="inline-flex items-center gap-1.5 bg-[#22A39E]/15 border border-[#22A39E]/30 text-[#177773] text-xs sm:text-sm font-black px-3 py-1.5 rounded-xl shadow-2xs">
-                      <Truck className="w-4 h-4 text-[#22A39E] shrink-0" />
-                      <span>توصيل مجاني</span>
-                    </div>
+          {/* Unified Responsive Grid — single source of truth for both Mobile
+              and Desktop layouts. On mobile everything stacks in one column,
+              visual order controlled by `order-N`. On desktop (lg:) the same
+              elements are repositioned into two visual columns using
+              `lg:col-span` / `lg:col-start` — nothing is duplicated. */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 sm:gap-2.5 lg:gap-8 lg:items-start min-w-0">
+
+            {/* 1. Price & Delivery Banner */}
+            <div className="order-1 lg:order-1 lg:col-span-7 rounded-2xl bg-gradient-to-l from-[#22A39E]/[0.07] via-white to-[#22A39E]/[0.07] border-2 border-[#22A39E]/30 p-3 sm:px-5 sm:py-3.5 shadow-xs transition-all hover:border-[#22A39E]/50">
+              <div className="flex items-center justify-between gap-3 sm:gap-6 flex-nowrap min-w-0">
+                {/* Price Section */}
+                <div className="flex items-baseline gap-1.5 sm:gap-2 shrink-0">
+                  <span className="text-xs sm:text-sm font-extrabold text-gray-700">السعر:</span>
+                  <span className="text-xl sm:text-2xl md:text-3xl font-black text-[#177773] tracking-tight drop-shadow-2xs">
+                    {product.price.toLocaleString('en-US')}
+                  </span>
+                  <span className="text-xs sm:text-sm font-bold text-gray-600 mr-0.5">
+                    د.ع
+                  </span>
+                  {product.old_price && product.old_price > product.price && (
+                    <span className="text-xs sm:text-sm text-gray-400 line-through mr-1.5 font-medium">
+                      {product.old_price.toLocaleString('en-US')}
+                    </span>
+                  )}
+                </div>
+
+                {/* Badges Section (Delivery + Discount) */}
+                <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+                  {discountPercentage && (
+                    <span className="inline-flex items-center bg-[#22A39E] text-white text-[11px] sm:text-xs font-black px-2.5 py-1 rounded-xl shadow-2xs">
+                      خصم {discountPercentage}%
+                    </span>
+                  )}
+                  <div className="inline-flex items-center gap-1.5 bg-[#22A39E]/15 border border-[#22A39E]/30 text-[#177773] text-xs sm:text-sm font-black px-3 py-1.5 rounded-xl shadow-2xs">
+                    <Truck className="w-4 h-4 text-[#22A39E] shrink-0" />
+                    <span>توصيل مجاني</span>
                   </div>
                 </div>
               </div>
+            </div>
 
+            {/* 2. Product Gallery */}
+            <div className="order-2 lg:order-2 lg:col-span-7 min-w-0">
               <ProductGallery
                 images={product.images}
                 mainImage={product.image}
                 title={product.title}
               />
-
-              {/* MOBILE ONLY: Title + Trust Badges right after the image */}
-              <div className="lg:hidden">
-                <ProductDetailsBox
-                  title={product.title}
-                  description={product.description}
-                  features={product.features}
-                  variant="header"
-                />
-              </div>
-
-              {/* MOBILE ONLY: Order Form right after title + badges
-                  NOTE: id="order-form-container" lives HERE on mobile because
-                  StickyBottomBar's IntersectionObserver watches this id and
-                  StickyBottomBar itself is md:hidden (mobile-only). */}
-              <div id="order-form-container" className="lg:hidden">
-                <OrderForm
-                  product={product}
-                  onOrderSuccess={onOrderSuccess}
-                />
-              </div>
-
-              {/* DESKTOP: Full Product Details Box (title + badges + description) unchanged */}
-              <div className="hidden lg:block">
-                <ProductDetailsBox
-                  title={product.title}
-                  description={product.description}
-                  features={product.features}
-                  variant="full"
-                />
-              </div>
-
-              {/* MOBILE ONLY: Description body below the order form */}
-              <div className="lg:hidden">
-                <ProductDetailsBox
-                  description={product.description}
-                  features={product.features}
-                  variant="body"
-                />
-              </div>
             </div>
 
-            {/* Column 2: DIRECT 1-STEP ORDER FORM (Sticky on desktop) - DESKTOP ONLY
-                NOTE: no id here anymore — StickyBottomBar is md:hidden anyway,
-                so this desktop copy doesn't need to be observed. */}
-            <div className="hidden lg:block lg:col-span-5 scroll-mt-4 mt-6 lg:mt-0 lg:sticky lg:top-4 min-w-0">
-              <div className="w-full min-w-0">
-                {/* Order Form Card */}
-                <OrderForm
-                  product={product}
-                  onOrderSuccess={onOrderSuccess}
-                />
-              </div>
+            {/* 3. Title + Trust Badges (Mobile) / Full Details Box (Desktop) —
+                same visual slot, mutually exclusive via hidden/lg:hidden,
+                sharing order-3 since they never render at the same time. */}
+            <div className="order-3 lg:order-3 lg:col-span-7 lg:hidden min-w-0">
+              <ProductDetailsBox
+                title={product.title}
+                description={product.description}
+                features={product.features}
+                variant="header"
+              />
+            </div>
+            <div className="hidden lg:block lg:order-3 lg:col-span-7 min-w-0">
+              <ProductDetailsBox
+                title={product.title}
+                description={product.description}
+                features={product.features}
+                variant="full"
+              />
+            </div>
+
+            {/* 4. Order Form — SINGLE instance in the DOM.
+                Mobile: flows in-place right after the title/badges (order-4).
+                Desktop: repositioned into the right column (col 8-12),
+                anchored to row 1 and made sticky, independent of how tall
+                the left column grows. */}
+            <div
+              id="order-form-container"
+              className="order-4 lg:order-4 lg:col-start-8 lg:col-span-5 lg:row-start-1 lg:sticky lg:top-4 min-w-0"
+            >
+              <OrderForm
+                product={product}
+                onOrderSuccess={onOrderSuccess}
+              />
+            </div>
+
+            {/* 5. Description body — Mobile only, shown below the order form.
+                Desktop already gets the full description inside the
+                "full" ProductDetailsBox above (order-3), so this stays
+                lg:hidden to avoid rendering the description twice. */}
+            <div className="order-5 lg:hidden lg:col-span-7 min-w-0">
+              <ProductDetailsBox
+                description={product.description}
+                features={product.features}
+                variant="body"
+              />
             </div>
 
           </div>
 
-          {/* Section 3: 3-Steps Order Guide (Full Width Below Columns) */}
+          {/* Section 3: 3-Steps Order Guide (Full Width Below Grid) */}
           <div className="min-w-0">
             <FunnelSteps />
           </div>
 
-          {/* Section 4: FAQ Accordion (Full Width Below Columns) */}
+          {/* Section 4: FAQ Accordion (Full Width Below Grid) */}
           <div className="max-w-3xl mx-auto min-w-0">
             <div className="text-center mb-6 min-w-0">
               <h2 className="text-lg sm:text-2xl font-extrabold text-black break-words">
