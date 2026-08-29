@@ -48,9 +48,9 @@ export const FunnelLandingPage: React.FC<FunnelLandingPageProps> = ({
   onOpenPolicy,
 }) => {
   // NOTE: OrderForm renders exactly ONCE in the DOM (single instance,
-  // repositioned via CSS Grid `order`/`col-start` between mobile and
-  // desktop), so its internal id="order-form-card" is never duplicated.
-  // A plain getElementById lookup is sufficient and reliable.
+  // repositioned via CSS Grid `order` between mobile and desktop), so its
+  // internal id="order-form-card" is never duplicated. A plain
+  // getElementById lookup is sufficient and reliable.
   const scrollToOrder = () => {
     const formElement = document.getElementById('order-form-card') || document.getElementById('order-form-container');
     if (formElement) {
@@ -76,97 +76,102 @@ export const FunnelLandingPage: React.FC<FunnelLandingPageProps> = ({
         <div className="max-w-4xl lg:max-w-6xl mx-auto px-3 sm:px-6 pt-4 pb-6 sm:pt-5 sm:pb-8 space-y-6 sm:space-y-8 min-w-0">
 
           {/* Unified Responsive Grid — single source of truth for both Mobile
-              and Desktop layouts. Mobile: everything stacks in one column,
-              visual order controlled by `order-N` (unchanged from before).
-              Desktop (lg:): the main column (price/gallery/details) is left
-              to auto-place row by row — its row heights are driven ONLY by
-              its own content. OrderForm sits in the side column (col 8-12)
-              and explicitly SPANS from row 1 to the LAST row (`lg:row-end`
-              via `-1`, i.e. "span to the grid's final line"), instead of
-              being pinned to a single row. That's the fix: a single-row
-              pin (`row-start-1` alone, with no span) forces row 1 to grow
-              to the form's full height, pushing the gallery down and
-              leaving a blank gap under the price banner. Spanning across
-              all rows lets each row size itself off the main column's own
-              (short) content, while the form still sits correctly beside
-              it and stays sticky. */}
+              and Desktop layouts.
+
+              DELIBERATE DESIGN CHOICE: the grid has only TWO real top-level
+              items in its first "row" (the main content block and the
+              OrderForm), not five separate items each with their own
+              row-start/row-end. Grouping price + gallery + details back
+              into ONE wrapper (exactly like the original, pre-merge
+              design) means that single wrapper's height is driven purely
+              by its own content, completely independent of the form.
+              With only two siblings sharing one implicit row and
+              `items-start` (no stretch), the row's height is simply
+              `max(main content height, form height)` — no explicit
+              row-span/row-end arithmetic needed at all, and no risk of
+              one item's height inflating a row that pushes the other
+              item down. This is the standard, lowest-risk CSS Grid
+              pattern for a "main column + sticky sidebar" layout. */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 sm:gap-2.5 lg:gap-8 lg:items-start min-w-0">
 
-            {/* 1. Price & Delivery Banner */}
-            <div className="order-1 lg:order-1 lg:col-span-7 rounded-2xl bg-gradient-to-l from-[#22A39E]/[0.07] via-white to-[#22A39E]/[0.07] border-2 border-[#22A39E]/30 p-3 sm:px-5 sm:py-3.5 shadow-xs transition-all hover:border-[#22A39E]/50">
-              <div className="flex items-center justify-between gap-3 sm:gap-6 flex-nowrap min-w-0">
-                {/* Price Section */}
-                <div className="flex items-baseline gap-1.5 sm:gap-2 shrink-0">
-                  <span className="text-xs sm:text-sm font-extrabold text-gray-700">السعر:</span>
-                  <span className="text-xl sm:text-2xl md:text-3xl font-black text-[#177773] tracking-tight drop-shadow-2xs">
-                    {product.price.toLocaleString('en-US')}
-                  </span>
-                  <span className="text-xs sm:text-sm font-bold text-gray-600 mr-0.5">
-                    د.ع
-                  </span>
-                  {product.old_price && product.old_price > product.price && (
-                    <span className="text-xs sm:text-sm text-gray-400 line-through mr-1.5 font-medium">
-                      {product.old_price.toLocaleString('en-US')}
-                    </span>
-                  )}
-                </div>
+            {/* MAIN COLUMN — price banner, gallery, and details box, stacked
+                in normal document flow (not as separate grid items). Same
+                internal order and spacing on both Mobile and Desktop. */}
+            <div className="order-1 lg:order-1 lg:col-span-7 space-y-2 sm:space-y-2.5 min-w-0">
 
-                {/* Badges Section (Delivery + Discount) */}
-                <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-                  {discountPercentage && (
-                    <span className="inline-flex items-center bg-[#22A39E] text-white text-[11px] sm:text-xs font-black px-2.5 py-1 rounded-xl shadow-2xs">
-                      خصم {discountPercentage}%
+              {/* Price & Delivery Banner */}
+              <div className="rounded-2xl bg-gradient-to-l from-[#22A39E]/[0.07] via-white to-[#22A39E]/[0.07] border-2 border-[#22A39E]/30 p-3 sm:px-5 sm:py-3.5 shadow-xs transition-all hover:border-[#22A39E]/50">
+                <div className="flex items-center justify-between gap-3 sm:gap-6 flex-nowrap min-w-0">
+                  {/* Price Section */}
+                  <div className="flex items-baseline gap-1.5 sm:gap-2 shrink-0">
+                    <span className="text-xs sm:text-sm font-extrabold text-gray-700">السعر:</span>
+                    <span className="text-xl sm:text-2xl md:text-3xl font-black text-[#177773] tracking-tight drop-shadow-2xs">
+                      {product.price.toLocaleString('en-US')}
                     </span>
-                  )}
-                  <div className="inline-flex items-center gap-1.5 bg-[#22A39E]/15 border border-[#22A39E]/30 text-[#177773] text-xs sm:text-sm font-black px-3 py-1.5 rounded-xl shadow-2xs">
-                    <Truck className="w-4 h-4 text-[#22A39E] shrink-0" />
-                    <span>توصيل مجاني</span>
+                    <span className="text-xs sm:text-sm font-bold text-gray-600 mr-0.5">
+                      د.ع
+                    </span>
+                    {product.old_price && product.old_price > product.price && (
+                      <span className="text-xs sm:text-sm text-gray-400 line-through mr-1.5 font-medium">
+                        {product.old_price.toLocaleString('en-US')}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Badges Section (Delivery + Discount) */}
+                  <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+                    {discountPercentage && (
+                      <span className="inline-flex items-center bg-[#22A39E] text-white text-[11px] sm:text-xs font-black px-2.5 py-1 rounded-xl shadow-2xs">
+                        خصم {discountPercentage}%
+                      </span>
+                    )}
+                    <div className="inline-flex items-center gap-1.5 bg-[#22A39E]/15 border border-[#22A39E]/30 text-[#177773] text-xs sm:text-sm font-black px-3 py-1.5 rounded-xl shadow-2xs">
+                      <Truck className="w-4 h-4 text-[#22A39E] shrink-0" />
+                      <span>توصيل مجاني</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* 2. Product Gallery */}
-            <div className="order-2 lg:order-2 lg:col-span-7 min-w-0">
+              {/* Gallery */}
               <ProductGallery
                 images={product.images}
                 mainImage={product.image}
                 title={product.title}
               />
+
+              {/* MOBILE ONLY: Title + Trust Badges right after the image */}
+              <div className="lg:hidden">
+                <ProductDetailsBox
+                  title={product.title}
+                  description={product.description}
+                  features={product.features}
+                  variant="header"
+                />
+              </div>
+
+              {/* DESKTOP: Full Product Details Box (title + badges + description) */}
+              <div className="hidden lg:block">
+                <ProductDetailsBox
+                  title={product.title}
+                  description={product.description}
+                  features={product.features}
+                  variant="full"
+                />
+              </div>
             </div>
 
-            {/* 3. Title + Trust Badges (Mobile) / Full Details Box (Desktop) —
-                same visual slot, mutually exclusive via hidden/lg:hidden,
-                sharing order-3 since they never render at the same time. */}
-            <div className="order-3 lg:order-3 lg:col-span-7 lg:hidden min-w-0">
-              <ProductDetailsBox
-                title={product.title}
-                description={product.description}
-                features={product.features}
-                variant="header"
-              />
-            </div>
-            <div className="hidden lg:block lg:order-3 lg:col-span-7 min-w-0">
-              <ProductDetailsBox
-                title={product.title}
-                description={product.description}
-                features={product.features}
-                variant="full"
-              />
-            </div>
-
-            {/* 4. Order Form — SINGLE instance in the DOM.
-                Mobile: flows in-place right after the title/badges (order-4).
-                Desktop: moved into the side column (col 8-12), pinned to
-                start at row 1 and SPAN to the grid's last row
-                (`lg:row-start-1 lg:row-end-[-1]`) so its own height never
-                inflates row 1 and pushes the main column's content down.
-                `lg:self-start` keeps the form itself at its natural height
-                (not stretched to fill the spanned rows), and `lg:sticky
-                lg:top-4` keeps the familiar sticky-while-scrolling behavior. */}
+            {/* ORDER FORM — SINGLE instance in the DOM.
+                Mobile: flows in-place right after the main column (order-2).
+                Desktop: naturally lands in the remaining 5 columns of the
+                same row (auto-placement — no explicit lg:col-start needed,
+                since the main column above already claims columns 1–7,
+                leaving exactly 5 free columns for this item to fill).
+                lg:sticky keeps it pinned while the main column scrolls
+                past it, exactly like the original design. */}
             <div
               id="order-form-container"
-              className="order-4 lg:order-4 lg:col-start-8 lg:col-span-5 lg:row-start-1 lg:row-end-[-1] lg:self-start lg:sticky lg:top-4 min-w-0"
+              className="order-2 lg:order-2 lg:col-span-5 lg:sticky lg:top-4 min-w-0"
             >
               <OrderForm
                 product={product}
@@ -174,11 +179,11 @@ export const FunnelLandingPage: React.FC<FunnelLandingPageProps> = ({
               />
             </div>
 
-            {/* 5. Description body — Mobile only, shown below the order form.
-                Desktop already gets the full description inside the
-                "full" ProductDetailsBox above (order-3), so this stays
-                lg:hidden to avoid rendering the description twice. */}
-            <div className="order-5 lg:hidden lg:col-span-7 min-w-0">
+            {/* MOBILE ONLY: Description body below the order form.
+                Desktop already shows the full description inside the
+                "full" ProductDetailsBox in the main column above, so this
+                stays lg:hidden to avoid rendering the description twice. */}
+            <div className="order-3 lg:hidden min-w-0">
               <ProductDetailsBox
                 description={product.description}
                 features={product.features}
