@@ -14,6 +14,7 @@ interface ProductDetailsBoxProps {
   title?: string;
   description?: string;
   features?: string[];
+  variant?: 'full' | 'header' | 'body';
 }
 
 interface ParsedSection {
@@ -26,6 +27,7 @@ export const ProductDetailsBox: React.FC<ProductDetailsBoxProps> = ({
   title = '',
   description = '',
   features = [],
+  variant = 'full',
 }) => {
   // Parse description intelligently without losing any words or text
   const { introText, sections, allPoints } = useMemo(() => {
@@ -142,14 +144,17 @@ export const ProductDetailsBox: React.FC<ProductDetailsBoxProps> = ({
     return null;
   }
 
+  const showHeader = variant === 'full' || variant === 'header';
+  const showBody = variant === 'full' || variant === 'body';
+
   return (
     <div
       id="product-details-box"
       className="rounded-2xl bg-white border border-gray-200/90 p-4 sm:p-5 shadow-xs space-y-4"
     >
       {/* 1. Product Title Heading */}
-      {title && (
-        <div className="space-y-3 pb-3 border-b border-gray-100 min-w-0">
+      {showHeader && title && (
+        <div className={`space-y-3 min-w-0 ${showBody ? 'pb-3 border-b border-gray-100' : ''}`}>
           <h1
             id="product-title-heading"
             className="text-base sm:text-xl md:text-2xl font-black text-gray-900 leading-snug tracking-tight break-words"
@@ -175,104 +180,107 @@ export const ProductDetailsBox: React.FC<ProductDetailsBoxProps> = ({
         </div>
       )}
 
-      {/* 3. Section Title Indicator */}
-      <div className="flex items-center gap-2 text-xs font-bold text-gray-900 pt-0.5 min-w-0">
-        <div className="flex items-center gap-2 text-[#22A39E]">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#22A39E] animate-pulse shrink-0"></span>
-          <span className="text-xs sm:text-sm font-bold text-gray-900 truncate">تفاصيل ومواصفات المنتج</span>
-        </div>
-      </div>
-
-      {/* 4. Structured & High-Readability Product Details */}
-      <div className="space-y-3.5 pt-1 min-w-0">
-        {sections.length > 0 ? (
-          sections.map((sec, secIdx) => (
-            <div key={secIdx} className="space-y-2.5 min-w-0">
-              {/* Optional Subsection Header */}
-              {sec.title && (
-                <div className="flex items-center gap-1.5 text-xs font-bold text-[#22A39E] bg-[#22A39E]/[0.06] border border-[#22A39E]/20 px-2.5 py-1.5 rounded-lg w-fit max-w-full">
-                  {sec.type === 'box' ? (
-                    <Package className="w-3.5 h-3.5 shrink-0" />
-                  ) : sec.type === 'specs' ? (
-                    <Sliders className="w-3.5 h-3.5 shrink-0" />
-                  ) : (
-                    <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                  )}
-                  <span className="break-words">{sec.title}</span>
-                </div>
-              )}
-
-              {/* Box Contents Render */}
-              {sec.type === 'box' ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-amber-50/60 border border-amber-200/70 p-3 rounded-xl">
-                  {sec.items.map((item, iIdx) => (
-                    <div
-                      key={iIdx}
-                      className="flex items-center gap-2 text-xs sm:text-sm font-medium text-gray-800 min-w-0"
-                    >
-                      <div className="w-4 h-4 rounded-full bg-amber-200/80 flex items-center justify-center text-amber-800 shrink-0">
-                        <Package className="w-2.5 h-2.5" />
-                      </div>
-                      <span className="leading-snug break-words min-w-0 flex-1">{item.text}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : sec.type === 'specs' ? (
-                /* Specs Key-Value Table/Grid */
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-gray-50/80 border border-gray-150 p-2.5 rounded-xl">
-                  {sec.items.map((item, iIdx) => (
-                    <div
-                      key={iIdx}
-                      className="flex items-center justify-between gap-2 bg-white px-3 py-2 rounded-lg border border-gray-100 text-xs sm:text-sm shadow-2xs min-w-0"
-                    >
-                      {item.key ? (
-                        <>
-                          <span className="font-bold text-gray-600 shrink-0">
-                            {item.key}:
-                          </span>
-                          <span className="font-semibold text-gray-900 text-left dir-ltr break-words min-w-0">
-                            {item.text}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="font-medium text-gray-800 break-words min-w-0">{item.text}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                /* Main Features / Points List - Clear, engaging, zero empty gaps */
-                <div className="space-y-2 min-w-0">
-                  {sec.items.map((item, iIdx) => (
-                    <div
-                      key={iIdx}
-                      className="flex items-start gap-2.5 p-2.5 sm:p-3 rounded-xl bg-gray-50/70 hover:bg-[#22A39E]/[0.04] transition-colors border border-gray-100/90 text-right min-w-0"
-                    >
-                      <div className="w-5 h-5 rounded-full bg-[#22A39E]/10 flex items-center justify-center text-[#22A39E] shrink-0 mt-0.5">
-                        <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                      </div>
-                      <div className="text-xs sm:text-[14px] leading-relaxed text-gray-800 font-medium break-words min-w-0 flex-1">
-                        {item.key && (
-                          <span className="font-bold text-gray-900 ml-1.5">
-                            {item.key}:
-                          </span>
-                        )}
-                        <span>{item.text}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+      {showBody && (
+        <>
+          {/* 3. Section Title Indicator */}
+          <div className="flex items-center gap-2 text-xs font-bold text-gray-900 pt-0.5 min-w-0">
+            <div className="flex items-center gap-2 text-[#22A39E]">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#22A39E] animate-pulse shrink-0"></span>
+              <span className="text-xs sm:text-sm font-bold text-gray-900 truncate">تفاصيل ومواصفات المنتج</span>
             </div>
-          ))
-        ) : (
-          /* Fallback clean description */
-          <div className="text-gray-800 text-sm leading-relaxed p-3 bg-gray-50/70 rounded-xl border border-gray-100 break-words">
-            {description}
           </div>
-        )}
-      </div>
+
+          {/* 4. Structured & High-Readability Product Details */}
+          <div className="space-y-3.5 pt-1 min-w-0">
+            {sections.length > 0 ? (
+              sections.map((sec, secIdx) => (
+                <div key={secIdx} className="space-y-2.5 min-w-0">
+                  {/* Optional Subsection Header */}
+                  {sec.title && (
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#22A39E] bg-[#22A39E]/[0.06] border border-[#22A39E]/20 px-2.5 py-1.5 rounded-lg w-fit max-w-full">
+                      {sec.type === 'box' ? (
+                        <Package className="w-3.5 h-3.5 shrink-0" />
+                      ) : sec.type === 'specs' ? (
+                        <Sliders className="w-3.5 h-3.5 shrink-0" />
+                      ) : (
+                        <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                      )}
+                      <span className="break-words">{sec.title}</span>
+                    </div>
+                  )}
+
+                  {/* Box Contents Render */}
+                  {sec.type === 'box' ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-amber-50/60 border border-amber-200/70 p-3 rounded-xl">
+                      {sec.items.map((item, iIdx) => (
+                        <div
+                          key={iIdx}
+                          className="flex items-center gap-2 text-xs sm:text-sm font-medium text-gray-800 min-w-0"
+                        >
+                          <div className="w-4 h-4 rounded-full bg-amber-200/80 flex items-center justify-center text-amber-800 shrink-0">
+                            <Package className="w-2.5 h-2.5" />
+                          </div>
+                          <span className="leading-snug break-words min-w-0 flex-1">{item.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : sec.type === 'specs' ? (
+                    /* Specs Key-Value Table/Grid */
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-gray-50/80 border border-gray-150 p-2.5 rounded-xl">
+                      {sec.items.map((item, iIdx) => (
+                        <div
+                          key={iIdx}
+                          className="flex items-center justify-between gap-2 bg-white px-3 py-2 rounded-lg border border-gray-100 text-xs sm:text-sm shadow-2xs min-w-0"
+                        >
+                          {item.key ? (
+                            <>
+                              <span className="font-bold text-gray-600 shrink-0">
+                                {item.key}:
+                              </span>
+                              <span className="font-semibold text-gray-900 text-left dir-ltr break-words min-w-0">
+                                {item.text}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="font-medium text-gray-800 break-words min-w-0">{item.text}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    /* Main Features / Points List - Clear, engaging, zero empty gaps */
+                    <div className="space-y-2 min-w-0">
+                      {sec.items.map((item, iIdx) => (
+                        <div
+                          key={iIdx}
+                          className="flex items-start gap-2.5 p-2.5 sm:p-3 rounded-xl bg-gray-50/70 hover:bg-[#22A39E]/[0.04] transition-colors border border-gray-100/90 text-right min-w-0"
+                        >
+                          <div className="w-5 h-5 rounded-full bg-[#22A39E]/10 flex items-center justify-center text-[#22A39E] shrink-0 mt-0.5">
+                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                          </div>
+                          <div className="text-xs sm:text-[14px] leading-relaxed text-gray-800 font-medium break-words min-w-0 flex-1">
+                            {item.key && (
+                              <span className="font-bold text-gray-900 ml-1.5">
+                                {item.key}:
+                              </span>
+                            )}
+                            <span>{item.text}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              /* Fallback clean description */
+              <div className="text-gray-800 text-sm leading-relaxed p-3 bg-gray-50/70 rounded-xl border border-gray-100 break-words">
+                {description}
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 };
-
