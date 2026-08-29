@@ -47,10 +47,10 @@ export const FunnelLandingPage: React.FC<FunnelLandingPageProps> = ({
   onOrderSuccess,
   onOpenPolicy,
 }) => {
-  // NOTE: OrderForm now renders exactly ONCE in the DOM (single instance,
-  // repositioned via CSS Grid `order`/`col-start` between mobile and desktop),
-  // so its internal id="order-form-card" is no longer duplicated. A plain
-  // getElementById lookup is sufficient and reliable again.
+  // NOTE: OrderForm renders exactly ONCE in the DOM (single instance,
+  // repositioned via CSS Grid `order`/`col-start` between mobile and
+  // desktop), so its internal id="order-form-card" is never duplicated.
+  // A plain getElementById lookup is sufficient and reliable.
   const scrollToOrder = () => {
     const formElement = document.getElementById('order-form-card') || document.getElementById('order-form-container');
     if (formElement) {
@@ -76,10 +76,20 @@ export const FunnelLandingPage: React.FC<FunnelLandingPageProps> = ({
         <div className="max-w-4xl lg:max-w-6xl mx-auto px-3 sm:px-6 pt-4 pb-6 sm:pt-5 sm:pb-8 space-y-6 sm:space-y-8 min-w-0">
 
           {/* Unified Responsive Grid — single source of truth for both Mobile
-              and Desktop layouts. On mobile everything stacks in one column,
-              visual order controlled by `order-N`. On desktop (lg:) the same
-              elements are repositioned into two visual columns using
-              `lg:col-span` / `lg:col-start` — nothing is duplicated. */}
+              and Desktop layouts. Mobile: everything stacks in one column,
+              visual order controlled by `order-N` (unchanged from before).
+              Desktop (lg:): the main column (price/gallery/details) is left
+              to auto-place row by row — its row heights are driven ONLY by
+              its own content. OrderForm sits in the side column (col 8-12)
+              and explicitly SPANS from row 1 to the LAST row (`lg:row-end`
+              via `-1`, i.e. "span to the grid's final line"), instead of
+              being pinned to a single row. That's the fix: a single-row
+              pin (`row-start-1` alone, with no span) forces row 1 to grow
+              to the form's full height, pushing the gallery down and
+              leaving a blank gap under the price banner. Spanning across
+              all rows lets each row size itself off the main column's own
+              (short) content, while the form still sits correctly beside
+              it and stays sticky. */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 sm:gap-2.5 lg:gap-8 lg:items-start min-w-0">
 
             {/* 1. Price & Delivery Banner */}
@@ -147,12 +157,16 @@ export const FunnelLandingPage: React.FC<FunnelLandingPageProps> = ({
 
             {/* 4. Order Form — SINGLE instance in the DOM.
                 Mobile: flows in-place right after the title/badges (order-4).
-                Desktop: repositioned into the right column (col 8-12),
-                anchored to row 1 and made sticky, independent of how tall
-                the left column grows. */}
+                Desktop: moved into the side column (col 8-12), pinned to
+                start at row 1 and SPAN to the grid's last row
+                (`lg:row-start-1 lg:row-end-[-1]`) so its own height never
+                inflates row 1 and pushes the main column's content down.
+                `lg:self-start` keeps the form itself at its natural height
+                (not stretched to fill the spanned rows), and `lg:sticky
+                lg:top-4` keeps the familiar sticky-while-scrolling behavior. */}
             <div
               id="order-form-container"
-              className="order-4 lg:order-4 lg:col-start-8 lg:col-span-5 lg:row-start-1 lg:sticky lg:top-4 min-w-0"
+              className="order-4 lg:order-4 lg:col-start-8 lg:col-span-5 lg:row-start-1 lg:row-end-[-1] lg:self-start lg:sticky lg:top-4 min-w-0"
             >
               <OrderForm
                 product={product}
