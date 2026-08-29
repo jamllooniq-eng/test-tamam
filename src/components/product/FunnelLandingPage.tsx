@@ -48,9 +48,20 @@ export const FunnelLandingPage: React.FC<FunnelLandingPageProps> = ({
   onOpenPolicy,
 }) => {
   const scrollToOrder = () => {
-    const formElement = document.getElementById('order-form-card') || document.getElementById('order-form-container');
-    if (formElement) {
-      formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // NOTE: OrderForm now renders twice in the DOM (a mobile copy and a
+    // desktop copy, toggled with CSS `hidden`/`lg:hidden`), so its internal
+    // id="order-form-card" is duplicated. getElementById would always return
+    // the FIRST one in DOM order even if it's the hidden one, so we instead
+    // look through all matches and scroll to whichever is actually visible.
+    const candidates = document.querySelectorAll(
+      '[id="order-form-card"], [id="order-form-container"]'
+    );
+    for (const el of Array.from(candidates)) {
+      const htmlEl = el as HTMLElement;
+      if (htmlEl.offsetParent !== null) {
+        htmlEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
     }
   };
 
