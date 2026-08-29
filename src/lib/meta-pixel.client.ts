@@ -101,6 +101,7 @@ export async function initMetaPixel(): Promise<void> {
 
     const res = await fetch('/api/meta-config');
     if (!res.ok) return;
+
     const data = await res.json();
     const pixelId = data.pixelId;
 
@@ -114,17 +115,22 @@ export async function initMetaPixel(): Promise<void> {
     /* eslint-disable */
     (function (f: any, b: any, e: any, v: any, n?: any, t?: any, s?: any) {
       if (f.fbq) return;
+
       n = f.fbq = function () {
         n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
       };
+
       if (!f._fbq) f._fbq = n;
+
       n.push = n;
       n.loaded = !0;
       n.version = '2.0';
       n.queue = [];
+
       t = b.createElement(e);
       t.async = !0;
       t.src = v;
+
       s = b.getElementsByTagName(e)[0];
       s.parentNode.insertBefore(t, s);
     })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
@@ -133,6 +139,10 @@ export async function initMetaPixel(): Promise<void> {
     if (window.fbq) {
       window.fbq('init', pixelId);
       window.fbq('track', 'PageView');
+
+      // Debug only — does not send another event
+      console.log(`[Meta Pixel] Tracked PageView (Pixel ID: ${pixelId})`);
+
       isInitialized = true;
     }
   } catch {
@@ -153,8 +163,55 @@ export function trackMetaEvent(
     } else {
       window.fbq('track', eventName, params);
     }
+
+    // Debug only — does not send another event
+    console.log(
+      `[Meta Pixel] Tracked ${eventName}${eventId ? ` (ID: ${eventId})` : ''}`,
+      params
+    );
   } catch {
     // Ignore tracking errors
+  }
+}
+
+/**
+ * Fire-and-forget dispatch to our server-side /track endpoint, giving ViewContent
+ * and InitiateCheckout server-side CAPI coverage (resilient to browser ad-blockers),
+ * matching the same reliability level Purchase already has via sendMetaCapiPurchase.
+ * No customer identity (name/phone) is available yet at this stage — only browser-level
+ * signals (fbc, fbp, IP, User-Agent), which is expected and correct for these early events.
+ */
+function sendServerCapiEarlyEvent(
+  eventName: 'ViewContent' | 'InitiateCheckout',
+  productId: string | number,
+  productName: string,
+  priceIqd: number,
+  count: number
+): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const { fbp, fbc } = getMetaCookies();
+    const eventId = `evt_${eventName}_${productId}_${Date.now()}`;
+    fetch('/.netlify/functions/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        eventName,
+        eventId,
+        productId,
+        productName,
+        priceIqd,
+        count,
+        sourceUrl: window.location.href,
+        fbc,
+        fbp,
+      }),
+      keepalive: true,
+    }).catch(() => {
+      // Silent fail — this is a best-effort tracking call, never block the user
+    });
+  } catch {
+    // Ignore
   }
 }
 
@@ -172,6 +229,8 @@ export function trackViewContent(product: {
     value: usdValue,
     currency: 'USD',
   });
+
+  sendServerCapiEarlyEvent('ViewContent', product.id, product.title, product.price, 1);
 }
 
 export function trackAddToCart(product: {
@@ -208,6 +267,8 @@ export function trackInitiateCheckout(product: {
     currency: 'USD',
     num_items: product.count,
   });
+
+  sendServerCapiEarlyEvent('InitiateCheckout', product.id, product.title, product.price, product.count);
 }
 
 /**
@@ -233,6 +294,7 @@ export function trackPurchase(order: {
 
         if (order.customerName) {
           const cleanName = order.customerName.trim().replace(/\s+/g, ' ').toLowerCase();
+
           if (cleanName) {
             advancedMatching.fn = cleanName;
           }
@@ -240,6 +302,7 @@ export function trackPurchase(order: {
 
         if (order.phone) {
           let cleanDigits = normalizeDigits(order.phone);
+
           if (cleanDigits.startsWith('07')) {
             cleanDigits = '964' + cleanDigits.substring(1);
           } else if (cleanDigits.startsWith('7') && cleanDigits.length === 10) {
@@ -247,6 +310,7 @@ export function trackPurchase(order: {
           } else if (cleanDigits.startsWith('009647')) {
             cleanDigits = '9647' + cleanDigits.substring(6);
           }
+
           if (cleanDigits) {
             advancedMatching.ph = cleanDigits;
           }
@@ -257,22 +321,32 @@ export function trackPurchase(order: {
         }
       }
 
+      const purchaseParams = {
+        content_ids: [String(order.productId)],
+        content_name: order.productName,
+        content_type: 'product',
+        value: usdValue,
+        currency: 'USD',
+        num_items: order.count,
+      };
+
       window.fbq(
         'track',
         'Purchase',
-        {
-          content_ids: [String(order.productId)],
-          content_name: order.productName,
-          content_type: 'product',
-          value: usdValue,
-          currency: 'USD',
-          num_items: order.count,
-        },
+        purchaseParams,
         { eventID: eventId }
+      );
+
+      // Debug only — does not send another event
+      console.log(
+        `[Meta Pixel] Tracked Purchase (ID: ${eventId})`,
+        {
+          ...purchaseParams,
+          event_id: eventId,
+        }
       );
     } catch {
       // Ignore tracking errors
     }
   }
 }
-

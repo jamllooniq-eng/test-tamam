@@ -69,20 +69,20 @@ export const handler: Handler = async (event) => {
       createdAt: formattedTime,
     };
 
-    // 2. Prepare Telegram Message
-    const telegramMsg = `📦 *طلب جديد من متجر تمام شوب*
-━━━━━━━━━━━━━━━━━
-🔢 *رقم الطلب:* \`${orderId}\`
-🛍️ *المنتج:* ${productName || 'منتج تمام شوب'} (معرف: \`${itemId}\`)
-👤 *العميل:* ${name}
-📞 *الهاتف:* \`${phone}\`
-📍 *المحافظة:* ${governorate}
-🏠 *العنوان التفصيلي:* ${address}
-🔢 *الكمية:* ${quantity || 1}
-💰 *المبلغ الإجمالي:* ${Number(totalPrice || 0).toLocaleString('en-US')} د.ع
-🚚 *التوصيل:* مجاني
-📝 *الملاحظات:* ${notes || 'لا توجد'}
-⏰ *الوقت (بغداد):* ${formattedTime}`;
+    // 2. Prepare Telegram Message (simplified, order-facing layout)
+    const telegramMsg = `📦 المنتج: ${productName || 'منتج تمام شوب'}
+
+الاسم: ${name}
+
+الهاتف: ${phone}
+
+المحافظة: ${governorate}
+
+العنوان: ${address}
+
+العدد: ${quantity || 1}
+
+المبلغ الإجمالي: ${Number(totalPrice || 0).toLocaleString('en-US')} د.ع`;
 
     const productPageUrl = `${(process.env.APP_URL || 'https://tamam-iq.com').replace(/\/+$/, '')}/product/${itemId}`;
 

@@ -236,20 +236,20 @@ export async function processOrder(
       createdAt: baghdadTime,
     };
 
-    // Telegram formatted Markdown
-    const telegramMsg = `📦 *طلب جديد من متجر تمام شوب*
-━━━━━━━━━━━━━━━━━
-🔢 *رقم الطلب:* \`${orderId}\`
-🛍️ *المنتج:* ${productName} (معرف: \`${itemId}\`)
-👤 *العميل:* ${name}
-📞 *الهاتف:* \`${normalizedPhone}\`
-📍 *المحافظة:* ${governorate}
-🏠 *العنوان التفصيلي:* ${address}
-🔢 *الكمية:* ${count}
-💰 *المبلغ الإجمالي:* ${expectedTotal.toLocaleString('en-US')} د.ع
-🚚 *التوصيل:* مجاني
-📝 *الملاحظات:* ${notes || 'لا توجد'}
-⏰ *الوقت (بغداد):* ${baghdadTime}`;
+    // Telegram formatted message (simplified, order-facing layout)
+    const telegramMsg = `📦 المنتج: ${productName}
+
+الاسم: ${name}
+
+الهاتف: ${normalizedPhone}
+
+المحافظة: ${governorate}
+
+العنوان: ${address}
+
+العدد: ${count}
+
+المبلغ الإجمالي: ${expectedTotal.toLocaleString('en-US')} د.ع`;
 
     const productPageUrl = `${(process.env.APP_URL || 'https://tamam-iq.com').replace(/\/+$/, '')}/product/${itemId}`;
 

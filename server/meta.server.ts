@@ -192,3 +192,119 @@ export async function sendMetaCapiPurchase(params: SendCapiEventParams): Promise
   }
 }
 
+interface SendCapiEarlyEventParams {
+  eventName: 'ViewContent' | 'InitiateCheckout' | string;
+  eventId?: string;
+  productId: string | number;
+  productName: string;
+  priceIqd: number;
+  count: number;
+  clientIp?: string;
+  userAgent?: string;
+  fbc?: string;
+  fbp?: string;
+  sourceUrl?: string;
+}
+
+/**
+ * Generic server-side CAPI dispatcher for early-funnel events (ViewContent, InitiateCheckout)
+ * where full customer identity (name/phone/governorate) is not yet available — unlike
+ * Purchase, which has full Advanced Matching via sendMetaCapiPurchase above.
+ * This gives these events resilience against browser-side ad-blockers, since the
+ * server-to-server call cannot be blocked the way a client-side fbq() pixel call can.
+ */
+export async function sendMetaCapiEvent(params: SendCapiEarlyEventParams): Promise<boolean> {
+  const pixelId = process.env.META_PIXEL_ID;
+  const accessToken = process.env.META_ACCESS_TOKEN;
+
+  if (!pixelId || !accessToken) {
+    return true;
+  }
+
+  try {
+    const rate = Number(process.env.IQD_TO_USD_RATE || 1400);
+    const usdValue = Number((params.priceIqd / rate).toFixed(2));
+
+    let cleanIp = params.clientIp?.trim();
+    if (cleanIp) {
+      if (cleanIp.startsWith('::ffff:')) {
+        cleanIp = cleanIp.substring(7);
+      }
+      cleanIp = cleanIp.split(',')[0].trim();
+    }
+
+    const rawUserData: Record<string, any> = {
+      country: [sha256('iq')],
+      client_ip_address: cleanIp || undefined,
+      client_user_agent: params.userAgent?.trim() || undefined,
+      fbc: (params.fbc && typeof params.fbc === 'string' && params.fbc.trim().startsWith('fb.'))
+        ? params.fbc.trim()
+        : undefined,
+      fbp: (params.fbp && typeof params.fbp === 'string' && params.fbp.trim().startsWith('fb.'))
+        ? params.fbp.trim()
+        : undefined,
+    };
+
+    const userData: Record<string, any> = {};
+    for (const [key, value] of Object.entries(rawUserData)) {
+      if (value !== undefined && value !== null && value !== '') {
+        if (Array.isArray(value)) {
+          const filteredArr = value.filter(v => typeof v === 'string' && v.length > 0);
+          if (filteredArr.length > 0) {
+            userData[key] = filteredArr;
+          }
+        } else {
+          userData[key] = value;
+        }
+      }
+    }
+
+    const customData = {
+      content_ids: [String(params.productId)],
+      content_name: params.productName,
+      content_type: 'product',
+      value: usdValue,
+      currency: 'USD',
+      num_items: params.count,
+    };
+
+    const payload: Record<string, any> = {
+      data: [
+        {
+          event_name: params.eventName,
+          event_time: Math.floor(Date.now() / 1000),
+          event_id: params.eventId,
+          action_source: 'website',
+          event_source_url: params.sourceUrl || process.env.APP_URL || 'https://tamam-iq.com',
+          user_data: userData,
+          custom_data: customData,
+        },
+      ],
+      access_token: accessToken,
+    };
+
+    const testEventCode = process.env.META_TEST_EVENT_CODE?.trim();
+    if (testEventCode) {
+      payload.test_event_code = testEventCode;
+    }
+
+    const res = await fetch(`https://graph.facebook.com/v19.0/${pixelId}/events`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`Meta CAPI (${params.eventName}) response error:`, errText);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.error(`Meta CAPI (${params.eventName}) error:`, err);
+    return false;
+  }
+}

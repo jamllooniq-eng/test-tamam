@@ -48,8 +48,6 @@ export const App: React.FC<AppProps> = ({ ssrRoute, ssrData, HomeViewSync }) => 
     return { active: false, type: 'page' };
   });
 
-  const [showPostOrderOverlay, setShowPostOrderOverlay] = useState(false);
-
   const [orderSuccess, setOrderSuccess] = useState<{
     orderId: string;
     orderDetails: {
@@ -155,12 +153,6 @@ export const App: React.FC<AppProps> = ({ ssrRoute, ssrData, HomeViewSync }) => 
       const parsed = parseRoute(currentPath, currentSearch);
 
       if (parsed.view === 'product' && parsed.productId) {
-        // If navigating back to the exact product page right after completing
-        // an order for it, show a brief reminder overlay instead of a clean page.
-        if (orderSuccess && String(orderSuccess.orderDetails.product.id) === String(parsed.productId)) {
-          setShowPostOrderOverlay(true);
-        }
-        setOrderSuccess(null);
         if (!selectedProduct || String(selectedProduct.id) !== String(parsed.productId)) {
           fetchAndSetProduct(parsed.productId, false);
         }
@@ -200,7 +192,7 @@ export const App: React.FC<AppProps> = ({ ssrRoute, ssrData, HomeViewSync }) => 
     }
 
     return () => window.removeEventListener('popstate', handleUrlChange);
-  }, [selectedProduct, orderSuccess]);
+  }, [selectedProduct]);
 
   const fetchAndSetProduct = async (productId: string | number, pushHistory: boolean = true) => {
     setLoadingProductDetails(true);
@@ -217,7 +209,6 @@ export const App: React.FC<AppProps> = ({ ssrRoute, ssrData, HomeViewSync }) => 
           setNotFoundState({ active: false, type: 'product' });
           setIsUnavailable(false);
           setOrderSuccess(null);
-    setShowPostOrderOverlay(false);
 
           // Update Client SEO & JSON-LD
           updatePageSEO(prod.title, prod.description, prod.image);
@@ -266,7 +257,6 @@ export const App: React.FC<AppProps> = ({ ssrRoute, ssrData, HomeViewSync }) => 
     setNotFoundState({ active: false, type: 'product' });
     setIsUnavailable(false);
     setOrderSuccess(null);
-    setShowPostOrderOverlay(false);
 
     // Client SEO & Pixel Tracking
     updatePageSEO(product.title, product.description, product.image);
@@ -299,7 +289,6 @@ export const App: React.FC<AppProps> = ({ ssrRoute, ssrData, HomeViewSync }) => 
     setNotFoundState({ active: false, type: 'page' });
     setIsUnavailable(false);
     setOrderSuccess(null);
-    setShowPostOrderOverlay(false);
     if (typeof window !== 'undefined') {
       window.history.pushState(null, '', '/');
     }
@@ -313,7 +302,6 @@ export const App: React.FC<AppProps> = ({ ssrRoute, ssrData, HomeViewSync }) => 
     setNotFoundState({ active: false, type: 'page' });
     setIsUnavailable(false);
     setOrderSuccess(null);
-    setShowPostOrderOverlay(false);
     if (typeof window !== 'undefined') {
       const newUrl = q ? `/?q=${encodeURIComponent(q)}` : '/';
       window.history.pushState(null, '', newUrl);
@@ -328,7 +316,6 @@ export const App: React.FC<AppProps> = ({ ssrRoute, ssrData, HomeViewSync }) => 
     setNotFoundState({ active: false, type: 'page' });
     setIsUnavailable(false);
     setOrderSuccess(null);
-    setShowPostOrderOverlay(false);
     if (typeof window !== 'undefined') {
       const newUrl = catId ? `/?category=${encodeURIComponent(catId)}` : '/';
       window.history.pushState(null, '', newUrl);
@@ -470,26 +457,6 @@ export const App: React.FC<AppProps> = ({ ssrRoute, ssrData, HomeViewSync }) => 
             />
           )}
         </Suspense>
-        {showPostOrderOverlay && (
-          <div
-            className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => setShowPostOrderOverlay(false)}
-          >
-            <div
-              className="bg-white rounded-2xl p-6 max-w-sm w-full text-center shadow-xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <p className="text-lg font-black text-gray-900 mb-2">تم الحجز بنجاح</p>
-              <p className="text-sm text-gray-600 mb-4">سيتم التواصل معك قريباً لتأكيد الطلب</p>
-              <button
-                onClick={() => setShowPostOrderOverlay(false)}
-                className="w-full py-3 rounded-xl bg-[#22A39E] text-white font-bold"
-              >
-                حسناً
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     );
   }
