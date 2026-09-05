@@ -13,7 +13,6 @@
 [images]
   remote_images = ["https://mojod\\.app/.*", "https://.*\\.mojod\\.app/.*", "https://rolemall\\.com/.*", "https://.*\\.rolemall\\.com/.*"]
 
-
 [[redirects]]
   from = "/api/products"
   to = "/.netlify/functions/products"
@@ -60,7 +59,11 @@
   status = 200
 
 [[redirects]]
+  from = "/feed.xml"
+  to = "/.netlify/functions/feed"
+  status = 200
+
+[[redirects]]
   from = "/*"
   to = "/.netlify/functions/ssr"
   status = 200
-
