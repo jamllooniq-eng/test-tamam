@@ -1,7 +1,6 @@
 import type { Handler } from '@netlify/functions';
 import { getProducts } from '../../server/rolemall.server';
 import { RolemallProduct } from '../../src/types';
-
 /**
  * Meta (Facebook/Instagram) Catalog Feed — XML (RSS 2.0 + g: namespace)
  * Docs: https://www.facebook.com/business/help/120325381656392
@@ -9,7 +8,6 @@ import { RolemallProduct } from '../../src/types';
  * Exposed at: /feed.xml  (see netlify.toml redirect)
  * Add this exact URL as the "Data Feed" source in Meta Commerce Manager.
  */
-
 function escapeXml(value: string): string {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -18,11 +16,48 @@ function escapeXml(value: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
 }
-
 function cdata(value: string): string {
   const safe = String(value ?? '').replace(/]]>/g, ']]]]><![CDATA[>');
   return `<![CDATA[${safe}]]>`;
 }
+
+// ============ إضافة: جلب خريطة الفيديو من جيتهاب وقت الطلب ============
+// نجيب video-map.json مباشرة من جيتهاب في كل مرة يُطلب فيها الفيد، بدل ما
+// نضمّنه وقت بناء الموقع. هذا يعني إن تحديث الفيديوهات (اللي يسويه سكريبت
+// تيليجرام تلقائيًا) ما يحتاج نشر جديد للموقع إطلاقًا — بس يحدّث الملف
+// بجيتهاب وفيد ميتا يجيب آخر نسخة منه فورًا بالطلب التالي.
+//
+// اضبط VIDEO_MAP_URL بمتغيرات بيئة Netlify ليشير لرابط الملف الخام (Raw)
+// بمستودعك، مثال:
+// https://raw.githubusercontent.com/USERNAME/REPO/main/video-map.json
+const VIDEO_MAP_URL = process.env.VIDEO_MAP_URL || '';
+
+// كاش بسيط بالذاكرة لمدة 10 دقائق، حتى ما نضغط على جيتهاب بكل طلب
+let videoMapCache: { data: Record<string, string>; fetchedAt: number } | null = null;
+const VIDEO_MAP_CACHE_TTL_MS = 10 * 60 * 1000; // 10 دقائق
+
+async function fetchVideoMap(): Promise<Record<string, string>> {
+  if (!VIDEO_MAP_URL) return {};
+
+  const now = Date.now();
+  if (videoMapCache && now - videoMapCache.fetchedAt < VIDEO_MAP_CACHE_TTL_MS) {
+    return videoMapCache.data;
+  }
+
+  try {
+    const res = await fetch(VIDEO_MAP_URL, { cache: 'no-store' as any });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = (await res.json()) as Record<string, string>;
+    videoMapCache = { data, fetchedAt: now };
+    return data;
+  } catch (err) {
+    console.error('Error fetching video-map.json from GitHub:', err);
+    // لو فشل الجلب (مثلاً الملف مو موجود بعد)، نرجع كاش قديم لو موجود
+    // وإلا نرجع فاضي بدون ما نكسر الفيد كامل.
+    return videoMapCache?.data || {};
+  }
+}
+// ========================================================================
 
 // Fetch ALL products from Rolemall by walking through every page
 async function fetchAllProducts(): Promise<RolemallProduct[]> {
@@ -30,7 +65,6 @@ async function fetchAllProducts(): Promise<RolemallProduct[]> {
   const limit = 100;
   let page = 1;
   const MAX_PAGES = 50; // safety cap (5000 products)
-
   while (page <= MAX_PAGES) {
     const result = await getProducts({ page, limit });
     if (!result.products || result.products.length === 0) break;
@@ -38,15 +72,13 @@ async function fetchAllProducts(): Promise<RolemallProduct[]> {
     if (!result.hasMore) break;
     page++;
   }
-
   return all;
 }
-
 export const handler: Handler = async () => {
   try {
     const baseUrl = process.env.APP_URL || 'https://tamam-iq.com';
     const products = await fetchAllProducts();
-
+    const videoMap = await fetchVideoMap();
     const items = products
       .filter((p) => p.title && p.price > 0 && p.image)
       .map((p) => {
@@ -58,14 +90,15 @@ export const handler: Handler = async () => {
           .slice(0, 10)
           .map((img) => `      <g:additional_image_link>${escapeXml(img)}</g:additional_image_link>`)
           .join('\n');
-
+        const videoUrl = videoMap[String(p.id)];
+        const videoTag = videoUrl ? `\n      <g:video_link>${escapeXml(videoUrl)}</g:video_link>` : '';
         return `    <item>
       <g:id>${escapeXml(String(p.id))}</g:id>
       <title>${cdata(p.title)}</title>
       <description>${cdata(description)}</description>
       <link>${escapeXml(link)}</link>
       <g:image_link>${escapeXml(p.image)}</g:image_link>
-${extraImages}
+${extraImages}${videoTag}
       <g:availability>${availability}</g:availability>
       <g:condition>new</g:condition>
       <g:price>${p.price} IQD</g:price>${p.old_price ? `\n      <g:sale_price>${p.price} IQD</g:sale_price>` : ''}
@@ -75,7 +108,6 @@ ${extraImages}
     </item>`;
       })
       .join('\n');
-
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">
   <channel>
@@ -85,7 +117,6 @@ ${extraImages}
 ${items}
   </channel>
 </rss>`;
-
     return {
       statusCode: 200,
       headers: {
