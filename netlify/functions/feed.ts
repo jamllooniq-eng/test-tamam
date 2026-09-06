@@ -33,10 +33,10 @@ function cdata(value: string): string {
 const VIDEO_MAP_URL = process.env.VIDEO_MAP_URL || '';
 
 // كاش بسيط بالذاكرة لمدة 10 دقائق، حتى ما نضغط على جيتهاب بكل طلب
-let videoMapCache: { data: Record<string, string>; fetchedAt: number } | null = null;
+let videoMapCache: { data: Record<string, string | string[]>; fetchedAt: number } | null = null;
 const VIDEO_MAP_CACHE_TTL_MS = 10 * 60 * 1000; // 10 دقائق
 
-async function fetchVideoMap(): Promise<Record<string, string>> {
+async function fetchVideoMap(): Promise<Record<string, string | string[]>> {
   if (!VIDEO_MAP_URL) return {};
 
   const now = Date.now();
@@ -47,7 +47,7 @@ async function fetchVideoMap(): Promise<Record<string, string>> {
   try {
     const res = await fetch(VIDEO_MAP_URL, { cache: 'no-store' as any });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = (await res.json()) as Record<string, string>;
+    const data = (await res.json()) as Record<string, string | string[]>;
     videoMapCache = { data, fetchedAt: now };
     return data;
   } catch (err) {
@@ -90,8 +90,22 @@ export const handler: Handler = async () => {
           .slice(0, 10)
           .map((img) => `      <g:additional_image_link>${escapeXml(img)}</g:additional_image_link>`)
           .join('\n');
-        const videoUrl = videoMap[String(p.id)];
-        const videoTag = videoUrl ? `\n      <g:video_link>${escapeXml(videoUrl)}</g:video_link>` : '';
+        // ملاحظة: الصيغة الرسمية من ميتا لحقل الفيديو هي <video><url>...</url></video>
+        // (مو <g:video_link> الشائع بأدوات ثالثة) — راجع:
+        // developers.facebook.com/docs/marketing-api/advantage-catalog-ads/dynamic-media
+        // videoMap[id] ممكن يكون رابط واحد (نص) أو أكثر من رابط (قائمة نصوص).
+        const rawVideo = videoMap[String(p.id)];
+        const videoUrls: string[] = Array.isArray(rawVideo)
+          ? rawVideo
+          : rawVideo
+          ? [rawVideo]
+          : [];
+        const videoTag = videoUrls.length
+          ? '\n' +
+            videoUrls
+              .map((url) => `      <video>\n        <url>${escapeXml(url)}</url>\n      </video>`)
+              .join('\n')
+          : '';
         return `    <item>
       <g:id>${escapeXml(String(p.id))}</g:id>
       <title>${cdata(p.title)}</title>
